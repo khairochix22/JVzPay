@@ -1,0 +1,60 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><div class="breadcrumb"><a href="/leave-requests">Leave Requests</a> / {{a.application_no}}</div>
+    <h1>{{a.name}}</h1><p>{{a.employee_no}} · {{a.position}} · {{a.department}} &nbsp; {{badge a.status}}</p></div>
+</div>
+{{#if (eq a.supervisor_status "pending")}}<div class="alert alert--warning"><svg class="ic"><use href="#i-clock"/></svg><div>Waiting for the immediate supervisor's approval{{#if a.supervisor_name}} ({{a.supervisor_name}}){{/if}}{{#if viaHr}}, reached through HR{{/if}}. Accounting/Payroll give the final decision after that.</div></div>{{else if (eq a.supervisor_status "approved")}}<div class="alert alert--success"><svg class="ic"><use href="#i-check-circle"/></svg><div>Approved by the immediate supervisor{{#if a.supervisor_name}}, {{a.supervisor_name}}{{/if}}{{#if a.supervisor_remarks}}: “{{a.supervisor_remarks}}”{{/if}}. Ready for the final decision.</div></div>{{/if}}
+{{#if own}}<div class="alert alert--warning"><svg class="ic"><use href="#i-alert"/></svg><div>This is your own application. Another Accounting Supervisor must decide on it.</div></div>{{/if}}
+
+<div class="grid grid--main-side">
+  <div class="grid" style="align-content:start">
+    <section class="card">
+      <div class="card__header"><div><h2>{{a.type_name}}{{#unless a.is_paid}} <span class="badge badge--neutral">Unpaid</span>{{/unless}}</h2><p>Filed {{datetime a.submitted_at}} by {{a.submitted_by_name}}</p></div></div>
+      <div class="card__body">
+        <dl class="dl">
+          <dt>Dates</dt><dd>{{date a.start_date}}{{#if (ne a.start_date a.end_date)}} – {{date a.end_date}}{{/if}}</dd>
+          <dt>Working days</dt><dd class="num"><strong>{{fixed a.days 1}}</strong></dd>
+          <dt>Reason</dt><dd>{{a.reason}}</dd>
+          <dt>Supporting document</dt><dd>{{#if a.attachment_id}}<a href="/documents/{{a.attachment_id}}" target="_blank" rel="noopener">{{a.attachment_name}}</a>{{else}}<span class="muted">None attached</span>{{/if}}</dd>
+        </dl>
+      </div>
+    </section>
+    {{#if (and (eq a.status "pending") canDecide (not own))}}
+      {{> decision_form action=(concat "/leave-requests/" a.id "/decision") csrf=csrfToken error=errors.decision remarks=remarks approveLabel="Approve leave"}}
+    {{else}}{{#unless (eq a.status "pending")}}
+    <section class="card"><div class="card__header"><h2>Decision</h2></div><div class="card__body">
+      {{#if a.decided_at}}<p>{{badge a.status}} by <strong>{{a.decided_by_name}}</strong> on {{datetime a.decided_at}}</p>{{#if a.decision_remarks}}<p class="muted" style="margin-top:8px">“{{a.decision_remarks}}”</p>{{/if}}{{else}}<p class="muted">This application was {{a.status}} by the employee.</p>{{/if}}
+    </div></section>{{/unless}}{{/if}}
+  </div>
+  <div class="grid" style="align-content:start">
+    <section class="card">
+      <div class="card__header"><h2>{{a.type_name}} balance</h2></div>
+      <div class="card__body">
+        {{#if a.balance}}
+        <dl class="dl" style="grid-template-columns:130px 1fr">
+          <dt>Entitled</dt><dd class="num">{{fixed a.balance.entitled_days 1}}{{#if (ne a.balance.adjusted_days "0.0")}} ({{a.balance.adjusted_days}} adj.){{/if}}</dd>
+          <dt>Used</dt><dd class="num">{{fixed a.balance.used_days 1}}</dd>
+          <dt>Reserved</dt><dd class="num">{{fixed a.balance.pending_days 1}} <span class="muted">(incl. this request if pending)</span></dd>
+          <dt>Remaining</dt><dd class="num"><strong>{{fixed a.balance.remaining 1}}</strong></dd>
+        </dl>
+        {{else}}<p class="muted">No balance record.</p>{{/if}}
+      </div>
+    </section>
+    <section class="card">
+      <div class="card__header"><div><h2>Same department, same dates</h2><p>Approved leave that overlaps</p></div></div>
+      <div class="card__body card__body--flush">
+        {{#if a.overlapping.length}}<ul class="list">{{#each a.overlapping}}<li class="list__item"><span class="dot"></span><div class="list__body"><strong>{{first_name}} {{last_name}}</strong><small>{{application_no}} · {{date start_date}} – {{date end_date}}</small></div></li>{{/each}}</ul>
+        {{else}}<div class="empty empty--sm">Nobody else from this department is on leave on these dates.</div>{{/if}}
+      </div>
+    </section>
+    <section class="card">
+      <div class="card__header"><h2>Decision log</h2></div>
+      <div class="card__body card__body--flush">
+        {{#if a.approvals.length}}<ul class="list">{{#each a.approvals}}<li class="list__item"><span class="dot"></span><div class="list__body"><strong>{{humanize action}}</strong><small>{{full_name}} ({{humanize actor_role}}) · {{datetime decided_at}}{{#if remarks}}<br>“{{remarks}}”{{/if}}</small></div></li>{{/each}}</ul>
+        {{else}}<div class="empty empty--sm">No decisions recorded yet.</div>{{/if}}
+      </div>
+    </section>
+  </div>
+</div>
+{{> app_shell_close}}

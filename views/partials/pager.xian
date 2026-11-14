@@ -1,0 +1,12 @@
+{{#if meta.total}}
+<div class="pager">
+  <div>Showing <strong>{{meta.from}}–{{meta.to}}</strong> of <strong>{{meta.total}}</strong></div>
+  {{#if meta.showPager}}
+  <nav class="pager__links" aria-label="Pagination">
+    {{#if meta.prevUrl}}<a href="{{meta.prevUrl}}" aria-label="Previous page"><svg class="ic ic--sm"><use href="#i-chevron-left"/></svg></a>{{else}}<span class="is-disabled"><svg class="ic ic--sm"><use href="#i-chevron-left"/></svg></span>{{/if}}
+    {{#each meta.window}}{{#if current}}<span class="is-current" aria-current="page">{{n}}</span>{{else}}<a href="{{url}}">{{n}}</a>{{/if}}{{/each}}
+    {{#if meta.nextUrl}}<a href="{{meta.nextUrl}}" aria-label="Next page"><svg class="ic ic--sm"><use href="#i-chevron-right"/></svg></a>{{else}}<span class="is-disabled"><svg class="ic ic--sm"><use href="#i-chevron-right"/></svg></span>{{/if}}
+  </nav>
+  {{/if}}
+</div>
+{{/if}}

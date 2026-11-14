@@ -1,0 +1,45 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header"><div><h1>Statutory Rules</h1><p>SSS, PhilHealth and Pag-IBIG rates by effective date. Check each against the current circular, then mark it verified.</p></div></div>
+<div class="alert alert--warning"><svg class="ic"><use href="#i-alert"/></svg><div>Payroll refuses to compute on unverified rules. The starting values were entered as defaults and may be out of date; verify them against current SSS, PhilHealth and Pag-IBIG issuances.</div></div>
+<section class="card mb">
+  <div class="table-wrap"><table data-table-tools class="table table--stack">
+    <thead><tr><th>Agency</th><th>Effective</th><th class="text-right">Employee</th><th class="text-right">Employer</th><th class="text-right">Floor – Ceiling</th><th class="text-right">Step</th><th>Source</th><th>Status</th><th class="actions"><span class="sr-only">Verify</span></th></tr></thead>
+    <tbody>{{#each rules}}<tr>
+      <td class="cell-primary"><strong>{{agency}}</strong>{{#if notes}}<br><span class="muted">{{notes}}</span>{{/if}}</td>
+      <td data-label="Effective" class="nowrap">{{date effective_from}}{{#if effective_to}} – {{date effective_to}}{{/if}}</td>
+      <td data-label="Employee" class="text-right num">{{pct employee_rate}}{{#if (gt low_income_ceiling 0)}}<br><span class="muted" style="font-size:12px">{{pct low_income_employee_rate}} at {{money low_income_ceiling}} or below</span>{{/if}}</td>
+      <td data-label="Employer" class="text-right num">{{pct employer_rate}}</td>
+      <td data-label="Floor – Ceiling" class="text-right num nowrap">{{money salary_floor}} – {{money salary_ceiling}}</td>
+      <td data-label="Step" class="text-right num">{{money rounding_step}}</td>
+      <td data-label="Source">{{source_reference}}</td>
+      <td data-label="Status"><div>{{#if is_verified}}{{badge "verified"}}<br><span class="muted" style="font-size:12px">{{verified_by_name}} · {{date verified_at}}</span>{{else}}<span class="badge badge--warning">Unverified</span>{{/if}}</div></td>
+      <td class="actions">{{#unless is_verified}}<form method="POST" action="/payroll/setup/statutory/{{id}}/verify" data-confirm="Confirm you checked this {{agency}} rule against the current official issuance." data-confirm-label="Mark verified"><input type="hidden" name="_csrf" value="{{../csrfToken}}"><button class="btn btn--primary btn--sm" type="submit">Verify</button></form>{{/unless}}</td>
+    </tr>{{/each}}</tbody>
+  </table></div>
+</section>
+<section class="card">
+  <div class="card__header"><div><h2>Add a new rule version</h2><p>The previous rule for the agency ends the day before this one takes effect.</p></div></div>
+  <form class="card__body" method="POST" action="/payroll/setup/statutory" novalidate>
+    <input type="hidden" name="_csrf" value="{{csrfToken}}">
+    {{#if errors.form}}<div class="alert alert--error" role="alert"><svg class="ic"><use href="#i-alert"/></svg><div>{{errors.form}}</div></div>{{/if}}
+    <div class="form-grid" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
+      <div class="field"><label for="agency">Agency <span class="req">*</span></label><select class="select" id="agency" name="agency">{{#each (array "SSS" "PHILHEALTH" "PAGIBIG")}}<option value="{{this}}" {{selected this ../form.agency}}>{{this}}</option>{{/each}}</select></div>
+      {{> field name="effective_from" label="Effective from" type="date" required=true value=form.effective_from error=errors.effective_from}}
+      {{> field name="employee_rate_pct" label="Employee rate %" required=true value=form.employee_rate_pct error=errors.employee_rate_pct inputmode="decimal"}}
+      {{> field name="employer_rate_pct" label="Employer rate %" required=true value=form.employer_rate_pct error=errors.employer_rate_pct inputmode="decimal"}}
+      {{> field name="salary_floor" label="Salary floor" required=true value=form.salary_floor error=errors.salary_floor inputmode="decimal"}}
+      {{> field name="salary_ceiling" label="Salary ceiling" required=true value=form.salary_ceiling error=errors.salary_ceiling inputmode="decimal"}}
+      {{> field name="rounding_step" label="Rounding step" value=form.rounding_step error=errors.rounding_step inputmode="decimal" hint="SSS: 500"}}
+      {{> field name="ec_threshold" label="EC threshold" value=form.ec_threshold error=errors.ec_threshold inputmode="decimal"}}
+      {{> field name="ec_amount_low" label="EC below threshold" value=form.ec_amount_low error=errors.ec_amount_low inputmode="decimal"}}
+      {{> field name="ec_amount_high" label="EC at/above threshold" value=form.ec_amount_high error=errors.ec_amount_high inputmode="decimal"}}
+      {{> field name="low_income_ceiling" label="Lower band: salary at or below" value=form.low_income_ceiling error=errors.low_income_ceiling inputmode="decimal" hint="Pag-IBIG: 1500"}}
+      {{> field name="low_income_employee_rate_pct" label="Lower band: employee rate %" value=form.low_income_employee_rate_pct error=errors.low_income_employee_rate_pct inputmode="decimal" hint="Pag-IBIG: 1"}}
+      <div class="span-2">{{> field name="source_reference" label="Source / circular" required=true value=form.source_reference error=errors.source_reference}}</div>
+      <div class="span-2">{{> field name="notes" label="Notes" value=form.notes error=errors.notes}}</div>
+    </div>
+    <div class="form-actions"><button class="btn btn--primary" type="submit">Add rule</button></div>
+  </form>
+</section>
+{{> app_shell_close}}

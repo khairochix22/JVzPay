@@ -1,0 +1,15 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header"><div><h1>Accounting Approvals</h1><p>Entries prepared by staff and manual adjustments. Nothing here affects the books until approved.</p></div></div>
+<section class="card">
+  {{#if rows.length}}
+  <div class="table-wrap"><table data-table-tools class="table table--stack">
+    <thead><tr><th>Entry</th><th>Type</th><th>Date</th><th class="text-right">Amount</th><th>Decision</th></tr></thead>
+    <tbody>{{#each rows}}<tr>
+      <td class="cell-primary"><strong>{{txn_no}}</strong> {{description}}<br><span class="muted">by {{created_by_name}}{{#if category_name}} · {{category_name}}{{/if}}{{#if attachment_id}} · <a href="/documents/{{attachment_id}}" target="_blank" rel="noopener">{{attachment_name}}</a>{{/if}}{{#if journal_entry_id}} · <a href="/accounting/journals/{{journal_entry_id}}">view draft journal</a>{{/if}}</span></td>
+      <td data-label="Type">{{humanize txn_type}}</td><td data-label="Date" class="nowrap">{{date txn_date}}</td><td data-label="Amount" class="text-right num">{{money amount}}</td>
+      <td data-label="Decision" style="min-width:260px">{{> decide_inline action=(concat "/accounting/approvals/" id "/decision") csrf=../csrfToken own=own}}</td>
+    </tr>{{/each}}</tbody></table></div>
+  {{else}}<div class="empty"><svg class="ic"><use href="#i-check-circle"/></svg><strong>Nothing waiting</strong>You're all caught up.</div>{{/if}}
+</section>
+{{> app_shell_close}}

@@ -1,0 +1,102 @@
+{{> app_head}}
+{{> app_shell_open}}
+{{#if d.unlinked}}
+<div class="empty card" style="padding:56px 20px"><svg class="ic"><use href="#i-user"/></svg><strong>Your account is not linked to an employee record</strong>Please ask your administrator to link your login to your employee profile.</div>
+{{else}}
+<section class="welcome">
+  <div><h1>Hi, {{d.profile.first_name}}</h1><p>{{d.profile.position}} · {{d.profile.department}}</p></div>
+  <div class="welcome__meta"><strong>Employee ID</strong>{{d.profile.employee_no}}</div>
+</section>
+
+{{> announcements items=d.announcements}}
+
+<div class="tile-grid mb">
+  <a class="tile" href="/my/payslips">
+    <div class="kpi__icon"><svg class="ic"><use href="#i-wallet"/></svg></div>
+    <div class="kpi__label">Latest take-home pay</div>
+    {{#if d.payslip}}
+      <div class="tile__value">{{money d.payslip.net_pay}}</div>
+      <div class="kpi__hint">{{d.payslip.period_label}} · released {{date d.payslip.released_at}}</div>
+    {{else}}
+      <div class="tile__value">—</div>
+      <div class="kpi__hint">No released payslip yet</div>
+    {{/if}}
+  </a>
+  <a class="tile" href="/my/bank">
+    <div class="kpi__icon"><svg class="ic"><use href="#i-bank"/></svg></div>
+    <div class="kpi__label">Bank account</div>
+    {{#if d.bank}}
+      <div class="tile__value" style="font-size:19px">{{d.bank.bank_name}}</div>
+      <div class="kpi__hint">Account ending {{d.bank.account_last4}} · active for payroll</div>
+    {{else}}
+      <div class="tile__value" style="font-size:19px">{{#if d.pending.bank}}Pending approval{{else}}Not enrolled{{/if}}</div>
+      <div class="kpi__hint">{{#if d.pending.bank}}Your request is with the Accounting Supervisor{{else}}Tap to enroll your payroll account{{/if}}</div>
+    {{/if}}
+  </a>
+  <div class="tile">
+    <div class="kpi__icon"><svg class="ic"><use href="#i-clock"/></svg></div>
+    <div class="kpi__label">My pending requests</div>
+    <div class="tile__value">{{d.pendingTotal}}</div>
+    <div class="kpi__hint">Leave {{d.pending.leave}} · Attendance {{d.pending.corrections}} · Bank {{d.pending.bank}}</div>
+  </div>
+  <a class="tile" href="/my/attendance">
+    <div class="kpi__icon"><svg class="ic"><use href="#i-trending-up"/></svg></div>
+    <div class="kpi__label">Overtime this month</div>
+    <div class="tile__value">{{fixed d.overtime.approved 2}} h</div>
+    <div class="kpi__hint">Approved hours{{#if d.overtime.pending}} · {{d.overtime.pending}} waiting for approval{{/if}}</div>
+  </a>
+  <a class="tile" href="/my/profile">
+    <div class="kpi__icon"><svg class="ic"><use href="#i-shield"/></svg></div>
+    <div class="kpi__label">Government enrollment</div>
+    <div class="tile__value" style="font-size:19px">{{#if d.govMissing}}{{d.govMissing}} number{{#if (gt d.govMissing 1)}}s{{/if}} missing{{else}}Complete{{/if}}</div>
+    <div class="kpi__hint">{{#each d.gov}}{{name}} {{#if onFile}}on file{{else}}missing{{/if}}{{#unless @last}} · {{/unless}}{{/each}}</div>
+  </a>
+</div>
+
+<div class="grid grid--2 mb">
+  {{> chart_card title="My attendance this month" subtitle="Days by status, month to date" config=d.cfg.attendance segments=true small=true emptyText="Your attendance records for this month will appear here."}}
+  <section class="card">
+    <div class="card__header"><div><h2>Leave credits</h2><p>Remaining days this year</p></div></div>
+    <div class="card__body">
+      {{#if d.leave.length}}
+        {{#each d.leave}}
+        <div style="margin-bottom:16px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px"><strong>{{name}}</strong><span class="num"><strong>{{fixed remaining 1}}</strong> of {{fixed total 1}} days</span></div>
+          <div class="meter" role="img" aria-label="{{name}}: {{fixed remaining 1}} of {{fixed total 1}} days remaining"><span style="width:{{this.pct}}%"></span></div>
+        </div>
+        {{/each}}
+      {{else}}
+        <div class="empty empty--sm"><svg class="ic"><use href="#i-calendar"/></svg><strong>No leave types are configured</strong>Ask the administrator to set up leave types.</div>
+      {{/if}}
+    </div>
+  </section>
+</div>
+
+<section class="card mb"><div class="card__header"><h2>Quick actions</h2></div><div class="card__body"><div class="quick">
+  <a href="/my/payslips"><svg class="ic"><use href="#i-file-text"/></svg>View payslips</a>
+  <a href="/my/attendance"><svg class="ic"><use href="#i-clock"/></svg>My attendance</a>
+  <a href="/my/leave#apply"><svg class="ic"><use href="#i-calendar"/></svg>Apply for leave</a>
+  <a href="/my/attendance?date={{today}}#correction"><svg class="ic"><use href="#i-edit"/></svg>Request correction</a>
+  <a href="/my/bank"><svg class="ic"><use href="#i-bank"/></svg>Bank account</a>
+  <a href="/my/profile"><svg class="ic"><use href="#i-user"/></svg>My profile</a>
+</div></div></section>
+
+<section class="card mb">
+  <div class="card__header"><div><h2>Recent payslips</h2></div><a class="btn btn--ghost btn--sm" href="/my/payslips">View all</a></div>
+  <div class="card__body card__body--flush" style="padding-top:8px">{{#if d.payslips.length}}<div class="table-wrap"><table class="table table--stack"><thead><tr><th>Period</th><th class="text-right">Gross</th><th class="text-right">Net pay</th><th class="actions"><span class="sr-only">Open</span></th></tr></thead><tbody>{{#each d.payslips}}<tr><td class="cell-primary"><strong>{{period_label}}</strong></td><td data-label="Gross" class="text-right num">{{money gross_pay}}</td><td data-label="Net pay" class="text-right num"><strong>{{money net_pay}}</strong></td><td class="actions"><a class="btn btn--secondary btn--sm" href="/my/payslips/{{id}}">View</a></td></tr>{{/each}}</tbody></table></div>{{else}}<div class="empty empty--sm"><svg class="ic"><use href="#i-file-text"/></svg><strong>No payslips yet</strong>They appear here once payroll is released.</div>{{/if}}</div>
+</section>
+
+<section class="card">
+  <div class="card__header"><div><h2>Recent notifications</h2></div><a class="btn btn--ghost btn--sm" href="/notifications">View all</a></div>
+  <div class="card__body card__body--flush" style="padding-top:8px">
+    {{#if d.notifications.length}}
+    <ul class="list">
+      {{#each d.notifications}}<li class="list__item {{#if is_read}}is-read{{/if}}"><span class="dot"></span><div class="list__body"><strong>{{title}}</strong><small>{{message}} · {{timeAgo created_at}}</small></div></li>{{/each}}
+    </ul>
+    {{else}}<div class="empty empty--sm"><svg class="ic"><use href="#i-bell"/></svg><strong>You're all caught up</strong>Payroll, leave and request updates will appear here.</div>{{/if}}
+  </div>
+</section>
+{{/if}}
+<script src="/vendor/chartjs/chart.umd.min.js"></script>
+<script src="/js/charts.js"></script>
+{{> app_shell_close}}

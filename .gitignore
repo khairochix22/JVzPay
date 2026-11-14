@@ -1,0 +1,16 @@
+# Secrets: .env holds the database password, session secret and DATA_ENCRYPTION_KEY. Never commit it; share .env.example instead.
+.env
+.env.*
+!.env.example
+
+# Personal data and backups live outside version control
+storage/
+*.sql
+*.sql.gz
+
+# Dependencies and machine files
+node_modules/
+npm-debug.log*
+*.log
+.DS_Store
+Thumbs.db

@@ -1,0 +1,19 @@
+<section class="card chart-card" data-chart="{{config}}">
+  <div class="card__header">
+    <div><h2>{{title}}</h2><p>{{subtitle}}</p></div>
+    <div class="chart-tools seg" role="group" aria-label="Chart or table view">
+      <button type="button" data-view="chart" aria-pressed="true">Chart</button>
+      <button type="button" data-view="table" aria-pressed="false">Table</button>
+    </div>
+  </div>
+  <div class="card__body">
+    <ul class="chart-legend" data-legend></ul>
+    {{#if segments}}
+      <div data-segbar></div>
+    {{else}}
+      <div class="chart-box {{#if small}}chart-box--sm{{/if}}"><canvas role="img" aria-label="{{title}}"></canvas></div>
+    {{/if}}
+    <div class="viz-table-wrap" data-viz-table></div>
+    <div class="chart-empty empty empty--sm"><svg class="ic"><use href="#i-inbox"/></svg><strong>No data yet</strong>{{emptyText}}</div>
+  </div>
+</section>

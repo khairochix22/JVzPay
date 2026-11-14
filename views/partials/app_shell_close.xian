@@ -1,0 +1,29 @@
+    </main>
+    <footer class="footer">© {{year}} {{company.name}} · JVzPay · {{company.address}} · <a href="/privacy">Privacy Notice</a></footer>
+  </div>
+</div>
+
+<dialog class="modal" id="confirm-dialog" aria-labelledby="confirm-title">
+  <div class="modal__head"><h3 id="confirm-title" data-confirm-title>Please confirm</h3></div>
+  <div class="modal__body"><p data-confirm-message></p></div>
+  <div class="modal__foot">
+    <button type="button" class="btn btn--secondary" data-confirm-cancel>Cancel</button>
+    <button type="button" class="btn btn--primary" data-confirm-ok>Confirm</button>
+  </div>
+</dialog>
+<div hidden data-session data-idle-ms="{{sessionIdleMs}}" data-csrf="{{csrfToken}}"></div>
+<dialog class="modal" id="session-dialog" aria-labelledby="session-title">
+  <div class="modal__head"><h3 id="session-title">Are you still there?</h3></div>
+  <div class="modal__body"><p>For your security you will be signed out in <strong data-session-left>2:00</strong> because there has been no activity.</p></div>
+  <div class="modal__foot">
+    <button type="button" class="btn btn--secondary" data-session-out>Sign out now</button>
+    <button type="button" class="btn btn--primary" data-session-stay>Stay signed in</button>
+  </div>
+</dialog>
+<script src="/js/session-timer.js"></script>
+<script src="/js/print-log.js"></script>
+<script src="/js/table-tools.js"></script>
+<script src="/js/form-masks.js"></script>
+<script src="/js/app.js"></script>
+</body>
+</html>

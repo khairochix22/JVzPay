@@ -1,0 +1,60 @@
+{{> app_head}}
+{{> app_shell_open}}
+<section class="welcome">
+  <div><h1>Hello, {{welcomeName}}</h1><p>Your accounting workspace. Entries you record go to the Accounting Supervisor for approval.</p></div>
+  <div class="welcome__meta"><strong>{{me.roleName}}</strong>{{datetime generatedAt}}</div>
+</section>
+
+{{> announcements items=d.announcements}}
+
+<div class="grid grid--kpi">
+  {{#each d.kpis}}{{> kpi}}{{/each}}
+</div>
+
+<div class="grid grid--main-side">
+  <div>
+    {{> chart_card title="Revenue vs expenses" subtitle="Last 6 months · from posted journal entries" config=d.cfg.incomeExpense emptyText="Recorded income and expenses appear here once they are approved and posted."}}
+    <section class="card" style="margin-top:22px">
+      <div class="card__header"><div><h2>Quick actions</h2></div></div>
+      <div class="card__body"><div class="quick">
+        <a href="/accounting/income"><svg class="ic"><use href="#i-trending-up"/></svg>Record income</a>
+        <a href="/accounting/expenses"><svg class="ic"><use href="#i-receipt"/></svg>Record expense</a>
+        <a href="/accounting/journals"><svg class="ic"><use href="#i-file-text"/></svg>Journal entries</a>
+        <a href="/accounting/accounts"><svg class="ic"><use href="#i-grid"/></svg>Chart of accounts</a>
+        <a href="/reports"><svg class="ic"><use href="#i-file-text"/></svg>Financial reports</a>
+      </div></div>
+    </section>
+  </div>
+  <section class="card" style="align-self:start">
+    <div class="card__header"><div><h2>Pending approvals</h2><p>Your entries waiting for the Accounting Supervisor</p></div></div>
+    <div class="card__body card__body--flush" style="padding-top:8px">
+      {{#if d.waiting.length}}<ul class="list">{{#each d.waiting}}<li class="list__item"><span class="dot"></span><div class="list__body"><strong>{{txn_no}} · {{money amount}}</strong><small>{{humanize txn_type}} · {{description}} · {{timeAgo created_at}}</small></div></li>{{/each}}</ul>
+      {{else}}<div class="empty empty--sm"><svg class="ic"><use href="#i-check-circle"/></svg><strong>Nothing waiting</strong>Every entry you made has been decided.</div>{{/if}}
+    </div>
+  </section>
+</div>
+
+<div class="grid grid--2" style="margin-top:22px">
+  <section class="card">
+    <div class="card__header"><div><h2>My recent entries</h2></div></div>
+    <div class="card__body card__body--flush" style="padding-top:8px">
+      {{#if d.recent.length}}<div class="table-wrap"><table class="table table--stack"><thead><tr><th>Entry</th><th>Date</th><th class="text-right">Amount</th><th>Status</th></tr></thead><tbody>
+      {{#each d.recent}}<tr><td class="cell-primary"><strong>{{txn_no}}</strong><br><span class="muted">{{humanize txn_type}} · {{description}}</span></td><td data-label="Date" class="nowrap">{{date txn_date}}</td><td data-label="Amount" class="text-right num">{{money amount}}</td><td data-label="Status">{{badge status}}</td></tr>{{/each}}
+      </tbody></table></div>
+      {{else}}<div class="empty empty--sm"><svg class="ic"><use href="#i-receipt"/></svg><strong>No entries yet</strong>Income and expenses you record will be listed here.</div>{{/if}}
+    </div>
+  </section>
+  <section class="card">
+    <div class="card__header"><div><h2>Notifications</h2></div><a class="btn btn--ghost btn--sm" href="/notifications">View all</a></div>
+    <div class="card__body card__body--flush" style="padding-top:8px">
+      {{#if d.notifications.length}}<ul class="list">{{#each d.notifications}}<li class="list__item {{#if is_read}}is-read{{/if}}"><span class="dot"></span><div class="list__body"><strong>{{title}}</strong><small>{{timeAgo created_at}}</small></div></li>{{/each}}</ul>
+      {{else}}<div class="empty empty--sm"><svg class="ic"><use href="#i-bell"/></svg><strong>No notifications</strong>Approvals and rejections of your entries will appear here.</div>{{/if}}
+    </div>
+  </section>
+</div>
+<div style="margin-top:22px">
+  {{> activity_list title="Recent financial activity" subtitle="Accounting entries, approvals and postings by everyone" items=d.activity}}
+</div>
+<script src="/vendor/chartjs/chart.umd.min.js"></script>
+<script src="/js/charts.js"></script>
+{{> app_shell_close}}

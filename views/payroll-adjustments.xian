@@ -1,0 +1,41 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header"><div><h1>Payroll Adjustments</h1><p>One-off earnings or deductions applied in a chosen open period, after supervisor approval. Use these to correct finalized payroll.</p></div>
+  {{#if (can "payroll.adjust.approve")}}<div class="page-actions"><a class="btn btn--secondary" href="/payroll/adjustments/review">Approval queue</a></div>{{/if}}</div>
+{{#if canSubmit}}
+<section class="card mb">
+  <div class="card__header"><h2>File an adjustment</h2></div>
+  <form class="card__body" method="POST" action="/payroll/adjustments" novalidate>
+    <input type="hidden" name="_csrf" value="{{csrfToken}}">
+    {{#if errors.form}}<div class="alert alert--error" role="alert"><svg class="ic"><use href="#i-alert"/></svg><div>{{errors.form}}</div></div>{{/if}}
+    <div class="form-grid" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr))">
+      <div class="field"><label for="employee_id">Employee <span class="req">*</span></label><select class="select" id="employee_id" name="employee_id" {{#if errors.employee_id}}aria-invalid="true"{{/if}}><option value="">Select</option>{{#each employees}}<option value="{{id}}" {{selected id ../form.employee_id}}>{{name}} ({{employee_no}})</option>{{/each}}</select>{{#if errors.employee_id}}<span class="field__error">{{errors.employee_id}}</span>{{/if}}</div>
+      <div class="field"><label for="period_id">Apply in period <span class="req">*</span></label><select class="select" id="period_id" name="period_id" {{#if errors.period_id}}aria-invalid="true"{{/if}}><option value="">Select</option>{{#each periods}}<option value="{{id}}" {{selected id ../form.period_id}}>{{label}} ({{humanize pay_frequency}})</option>{{/each}}</select>{{#if errors.period_id}}<span class="field__error">{{errors.period_id}}</span>{{/if}}</div>
+      <div class="field"><label for="component_id">Component <span class="req">*</span></label><select class="select" id="component_id" name="component_id" {{#if errors.component_id}}aria-invalid="true"{{/if}}><option value="">Select</option>{{#each components}}<option value="{{id}}" {{selected id ../form.component_id}}>{{name}} ({{component_type}})</option>{{/each}}</select>{{#if errors.component_id}}<span class="field__error">{{errors.component_id}}</span>{{/if}}</div>
+      {{> field name="amount" label="Amount (₱)" required=true value=form.amount error=errors.amount inputmode="decimal"}}
+      <div class="span-2">{{> field name="reason" label="Reason" required=true value=form.reason error=errors.reason}}</div>
+    </div>
+    <div class="form-actions"><button class="btn btn--primary" type="submit">Submit for approval</button></div>
+  </form>
+</section>
+{{/if}}
+<section class="card">
+  <form class="toolbar" method="GET" action="/payroll/adjustments"><div class="input-group search"><svg class="ic"><use href="#i-search"/></svg><label class="sr-only" for="q">Search</label><input class="input" type="search" id="q" name="q" value="{{t.q}}" placeholder="Employee or adjustment no." data-autosubmit></div>
+    <select class="select" name="status" aria-label="Status" data-autosubmit>{{#each (array "all" "pending" "approved" "rejected" "applied")}}<option value="{{this}}" {{selected this ../status}}>{{humanize this}}</option>{{/each}}</select></form>
+  {{#if rows.length}}
+  <div class="table-wrap"><table class="table table--stack">
+    <thead><tr><th>Adjustment</th>{{sortTh meta "employee" "Employee"}}<th>Component</th><th>Period</th><th class="text-right">Amount</th><th>Reason</th><th>Status</th></tr></thead>
+    <tbody>{{#each rows}}<tr>
+      <td class="cell-primary"><strong>{{adjustment_no}}</strong><br><span class="muted">by {{submitted_by_name}}</span></td>
+      <td data-label="Employee"><div>{{name}}<br><span class="muted">{{employee_no}}</span></div></td>
+      <td data-label="Component"><div>{{component_name}}<br><span class="muted">{{adjustment_type}}</span></div></td>
+      <td data-label="Period">{{period_label}}</td>
+      <td data-label="Amount" class="text-right num">{{money amount}}</td>
+      <td data-label="Reason">{{reason}}</td>
+      <td data-label="Status"><div>{{badge status}}{{#if decision_remarks}}<br><span class="muted" style="font-size:12px">“{{decision_remarks}}”</span>{{/if}}</div></td>
+    </tr>{{/each}}</tbody>
+  </table></div>
+  {{> pager meta=meta}}
+  {{else}}<div class="empty"><svg class="ic"><use href="#i-edit"/></svg><strong>No adjustments</strong>Filed adjustments appear here.</div>{{/if}}
+</section>
+{{> app_shell_close}}

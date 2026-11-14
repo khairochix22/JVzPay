@@ -1,0 +1,40 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><h1>Bank Accounts & Reconciliation</h1><p>The store's own bank accounts. Each is booked in a cash account; reconcile it against every bank statement.</p></div>
+</div>
+
+<div class="grid grid--main-side mb">
+  <section class="card">
+    <div class="card__header"><div><h2>Bank accounts</h2></div></div>
+    <div class="card__body card__body--flush">
+      {{#if banks.length}}<div class="table-wrap"><table class="table table--stack"><thead><tr><th>Account</th><th>Booked in</th><th class="text-right">Book balance</th><th>Last reconciled</th><th class="actions">Reconcile a statement</th></tr></thead><tbody>
+      {{#each banks}}<tr><td class="cell-primary"><strong>{{bank_name}}</strong><br><span class="muted">{{account_name}} · ••••{{account_last4}}</span></td><td data-label="Booked in">{{gl_code}} · {{gl_name}}</td><td data-label="Book balance" class="text-right num">{{money book_balance}}</td><td data-label="Last reconciled">{{#if last_reconciled}}{{date last_reconciled}}{{else}}Never{{/if}}</td>
+        <td class="actions"><form method="POST" action="/accounting/banks/{{id}}/reconciliations" style="display:inline-flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><input type="hidden" name="_csrf" value="{{../csrfToken}}"><input class="input" type="date" name="statement_date" value="{{../today}}" aria-label="Statement date" style="min-height:36px;width:150px"><input class="input" name="statement_balance" placeholder="Ending balance" inputmode="decimal" aria-label="Statement ending balance" style="min-height:36px;width:130px"><button class="btn btn--primary btn--sm" type="submit">Start</button></form></td></tr>{{/each}}
+      </tbody></table></div>
+      {{else}}<div class="empty empty--sm"><svg class="ic"><use href="#i-bank"/></svg><strong>No bank accounts yet</strong>Add the store's account to start reconciling.</div>{{/if}}
+    </div>
+  </section>
+  <section class="card">
+    <div class="card__header"><div><h2>Add a bank account</h2></div></div>
+    <form class="card__body" method="POST" action="/accounting/banks" novalidate autocomplete="off">
+      <input type="hidden" name="_csrf" value="{{csrfToken}}">
+      <div class="form-grid" style="grid-template-columns:1fr">
+        {{> field name="bank_name" label="Bank" required=true value=form.bank_name error=errors.bank_name}}
+        {{> field name="account_name" label="Account name" required=true value=form.account_name error=errors.account_name}}
+        {{> field name="account_number" label="Account number" required=true error=errors.account_number inputmode="numeric" hint="Stored encrypted; shown as the last 4 digits"}}
+        <div class="field"><label for="gl_account_id">Booked in <span class="req">*</span></label><select class="select" id="gl_account_id" name="gl_account_id"><option value="">Select a cash account</option>{{#each unused}}<option value="{{id}}" {{selected id ../form.gl_account_id}}>{{code}} · {{name}}</option>{{/each}}</select>{{#if errors.gl_account_id}}<span class="field__error">{{errors.gl_account_id}}</span>{{/if}}</div>
+      </div>
+      <button class="btn btn--secondary btn--block" type="submit" style="margin-top:14px"><svg class="ic"><use href="#i-plus"/></svg>Add bank account</button>
+    </form>
+  </section>
+</div>
+
+<section class="card">
+  <div class="card__header"><div><h2>Reconciliations</h2></div></div>
+  <div class="card__body card__body--flush">
+    {{#if recs.length}}<ul class="list">{{#each recs}}<li class="list__item"><div class="list__body"><strong><a href="/accounting/reconciliations/{{id}}">{{bank_name}} ••••{{account_last4}} · statement {{date statement_date}}</a></strong><small>Statement balance {{money statement_balance}}{{#if reconciled_by_name}} · reconciled by {{reconciled_by_name}}{{/if}}</small></div>{{badge status}}</li>{{/each}}</ul>
+    {{else}}<div class="empty empty--sm"><svg class="ic"><use href="#i-check-circle"/></svg><strong>No reconciliations yet</strong></div>{{/if}}
+  </div>
+</section>
+{{> app_shell_close}}

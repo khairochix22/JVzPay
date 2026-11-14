@@ -1,0 +1,42 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><div class="breadcrumb"><a href="/attendance/corrections">Attendance Corrections</a> / {{q.request_no}}</div>
+    <h1>{{q.name}}</h1><p>{{q.employee_no}} · {{q.position}} · {{q.department}} &nbsp; {{badge q.status}}</p></div>
+</div>
+{{#if (eq q.supervisor_status "pending")}}<div class="alert alert--warning"><svg class="ic"><use href="#i-clock"/></svg><div>Waiting for the immediate supervisor's approval{{#if q.supervisor_name}} ({{q.supervisor_name}}){{/if}}{{#if viaHr}}, reached through HR{{/if}}. Accounting/Payroll give the final decision after that.</div></div>{{else if (eq q.supervisor_status "approved")}}<div class="alert alert--success"><svg class="ic"><use href="#i-check-circle"/></svg><div>Approved by the immediate supervisor{{#if q.supervisor_name}}, {{q.supervisor_name}}{{/if}}{{#if q.supervisor_remarks}}: “{{q.supervisor_remarks}}”{{/if}}. Ready for the final decision.</div></div>{{/if}}
+{{#if own}}<div class="alert alert--warning"><svg class="ic"><use href="#i-alert"/></svg><div>This is your own request. Another Accounting Supervisor must review it.</div></div>{{/if}}
+{{#if (eq q.record_validation "locked")}}<div class="alert alert--error"><svg class="ic"><use href="#i-lock"/></svg><div>This day is already included in finalized payroll, so it cannot be corrected here. Reject it and ask Payroll Staff to file a payroll adjustment.</div></div>{{/if}}
+
+<div class="grid grid--main-side">
+  <div class="grid" style="align-content:start">
+    <section class="card">
+      <div class="card__header"><div><h2>{{date q.work_date}}</h2><p>Submitted {{datetime q.submitted_at}} by {{q.submitted_by_name}}</p></div></div>
+      <div class="card__body">
+        <div class="grid grid--2">
+          <div><div class="kpi__label" style="margin-bottom:6px">Current record</div>
+            {{#if q.original_status}}<p>{{badge q.original_status}}</p><p class="num" style="margin-top:6px;font-size:18px">{{time q.original_time_in}} – {{time q.original_time_out}}</p>
+            {{else}}<p class="muted">No record existed for this day.</p>{{/if}}</div>
+          <div><div class="kpi__label" style="margin-bottom:6px">Requested correction</div>
+            <p>{{badge q.requested_status}}</p>{{#if q.requested_time_in}}<p class="num" style="margin-top:6px;font-size:18px"><strong>{{time q.requested_time_in}} – {{time q.requested_time_out}}</strong></p>{{/if}}</div>
+        </div>
+        <div style="margin-top:18px"><div class="kpi__label">Reason</div><p style="margin-top:4px">{{q.reason}}</p></div>
+        <div style="margin-top:14px"><div class="kpi__label">Supporting document</div><p style="margin-top:4px">{{#if q.attachment_id}}<a href="/documents/{{q.attachment_id}}" target="_blank" rel="noopener">{{q.attachment_name}}</a>{{else}}<span class="muted">None attached</span>{{/if}}</p></div>
+      </div>
+    </section>
+    {{#if (and (eq q.status "pending") canDecide (not own))}}
+      {{> decision_form action=(concat "/attendance/corrections/" q.id "/decision") csrf=csrfToken error=errors.decision remarks=remarks approveLabel="Approve correction"}}
+    {{else}}{{#unless (eq q.status "pending")}}
+    <section class="card"><div class="card__header"><h2>Decision</h2></div><div class="card__body">
+      {{#if q.decided_at}}<p>{{badge q.status}} by <strong>{{q.decided_by_name}}</strong> on {{datetime q.decided_at}}</p>{{#if q.decision_remarks}}<p class="muted" style="margin-top:8px">“{{q.decision_remarks}}”</p>{{/if}}{{else}}<p class="muted">This request was {{q.status}} by the employee.</p>{{/if}}
+    </div></section>{{/unless}}{{/if}}
+  </div>
+  <section class="card" style="align-self:start">
+    <div class="card__header"><h2>Decision log</h2></div>
+    <div class="card__body card__body--flush">
+      {{#if q.approvals.length}}<ul class="list">{{#each q.approvals}}<li class="list__item"><span class="dot"></span><div class="list__body"><strong>{{humanize action}}</strong><small>{{full_name}} ({{humanize actor_role}}) · {{datetime decided_at}}{{#if remarks}}<br>“{{remarks}}”{{/if}}</small></div></li>{{/each}}</ul>
+      {{else}}<div class="empty empty--sm">No decisions recorded yet.</div>{{/if}}
+    </div>
+  </section>
+</div>
+{{> app_shell_close}}

@@ -1,0 +1,52 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><h1>Attendance Records</h1><p>Daily time records of all employees, {{date from}} – {{date to}}.</p></div>
+  <div class="page-actions">
+    {{#if (can "attendance.encode")}}<a class="btn btn--primary" href="/attendance/encode"><svg class="ic"><use href="#i-edit"/></svg>Encode attendance</a>{{/if}}
+    {{#if (can "attendance.validate")}}<a class="btn btn--secondary" href="/attendance/validation">Validate</a>{{/if}}
+  </div>
+</div>
+
+<div class="grid grid--kpi">
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-file-text"/></svg></div><div><div class="kpi__label">Records</div><div class="kpi__value">{{number summary.total}}</div><div class="kpi__hint">In the selected range</div></div></div>
+  <div class="kpi kpi--success"><div class="kpi__icon"><svg class="ic"><use href="#i-check-circle"/></svg></div><div><div class="kpi__label">Present</div><div class="kpi__value">{{number summary.present}}</div><div class="kpi__hint">On time</div></div></div>
+  <div class="kpi kpi--warning"><div class="kpi__icon"><svg class="ic"><use href="#i-clock"/></svg></div><div><div class="kpi__label">Late</div><div class="kpi__value">{{number summary.late}}</div><div class="kpi__hint">{{number summary.late_minutes}} minutes in total</div></div></div>
+  <div class="kpi kpi--danger"><div class="kpi__icon"><svg class="ic"><use href="#i-x"/></svg></div><div><div class="kpi__label">Absent</div><div class="kpi__value">{{number summary.absent}}</div><div class="kpi__hint">{{number summary.on_leave}} on leave</div></div></div>
+  <div class="kpi {{#if (gt summary.pending 0)}}kpi--warning{{/if}}"><div class="kpi__icon"><svg class="ic"><use href="#i-inbox"/></svg></div><div><div class="kpi__label">Awaiting validation</div><div class="kpi__value">{{number summary.pending}}</div><div class="kpi__hint">Not yet usable by payroll</div></div></div>
+</div>
+
+<section class="card">
+  <form class="toolbar" method="GET" action="/attendance" role="search">
+    <div class="input-group search"><svg class="ic"><use href="#i-search"/></svg><label class="sr-only" for="q">Search employee</label>
+      <input class="input" type="search" id="q" name="q" value="{{t.q}}" placeholder="Employee name or ID" data-autosubmit></div>
+    <label class="sr-only" for="from">From</label><input class="input" style="width:auto" type="date" id="from" name="from" value="{{from}}" aria-label="From date">
+    <label class="sr-only" for="to">To</label><input class="input" style="width:auto" type="date" id="to" name="to" value="{{to}}" aria-label="To date">
+    <select class="select" name="department" aria-label="Department" data-autosubmit><option value="">All departments</option>{{#each departments}}<option value="{{id}}" {{selected id ../filters.department}}>{{name}}</option>{{/each}}</select>
+    <select class="select" name="status" aria-label="Status" data-autosubmit><option value="">All statuses</option>{{#each statuses}}<option value="{{this}}" {{selected this ../filters.status}}>{{humanize this}}</option>{{/each}}</select>
+    <select class="select" name="validation" aria-label="Validation" data-autosubmit><option value="">Any validation</option>{{#each (array "pending" "validated" "locked")}}<option value="{{this}}" {{selected this ../filters.validation}}>{{humanize this}}</option>{{/each}}</select>
+    <button class="btn btn--secondary" type="submit">Apply</button>
+  </form>
+  {{#if rows.length}}
+  <div class="table-wrap"><table class="table table--stack">
+    <thead><tr>{{sortTh meta "date" "Date"}}{{sortTh meta "employee" "Employee"}}<th>In</th><th>Out</th>{{sortTh meta "status" "Status"}}<th class="text-right">Hours</th><th class="text-right">Late / UT</th><th>Validation</th><th>Source</th></tr></thead>
+    <tbody>
+      {{#each rows}}
+      <tr>
+        <td data-label="Date" class="nowrap">{{date work_date}}</td>
+        <td class="cell-primary"><strong>{{name}}</strong><br><span class="muted">{{employee_no}} · {{department}}</span></td>
+        <td data-label="In">{{time time_in}}</td>
+        <td data-label="Out">{{time time_out}}</td>
+        <td data-label="Status">{{badge status}}</td>
+        <td data-label="Hours" class="text-right num">{{fixed hours_worked 2}}</td>
+        <td data-label="Late / UT" class="text-right num">{{late_minutes}} / {{undertime_minutes}}{{#if (gt overbreak_minutes 0)}}<br><span class="muted" title="Minutes past breaks or lunch">lost {{overbreak_minutes}}</span>{{/if}}</td>
+        <td data-label="Validation"><div>{{badge validation_status}}{{#if validated_by_name}}<br><span class="muted" style="font-size:12px">{{validated_by_name}}</span>{{/if}}</div></td>
+        <td data-label="Source">{{humanize source}}</td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table></div>
+  {{> pager meta=meta}}
+  {{else}}<div class="empty"><svg class="ic"><use href="#i-clock"/></svg><strong>No attendance records</strong>Nothing matches the selected range and filters.</div>{{/if}}
+</section>
+{{> app_shell_close}}

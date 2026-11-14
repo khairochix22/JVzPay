@@ -1,0 +1,33 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="breadcrumb"><a href="/users/requests">Account Requests</a> / {{r.employee_no}}</div>
+<div class="page-header"><div><h1>{{r.full_name}}</h1><p>Asked for an Accounting Staff account {{timeAgo r.created_at}}.</p></div><div>{{badge r.status}}</div></div>
+<div class="grid grid--main-side">
+  <section class="card" style="align-self:start">
+    <div class="card__header"><h2>Details given</h2></div>
+    <div class="card__body">
+      <dl class="dl">
+        <dt>Full name</dt><dd>{{r.full_name}}</dd>
+        <dt>Employee ID</dt><dd class="num">{{r.employee_no}}</dd>
+        <dt>Position</dt><dd>{{r.position_title}}</dd>
+        <dt>Email</dt><dd>{{r.email}}</dd>
+        <dt>Unique code</dt><dd><span class="muted">Stored encrypted; checked against HR once connected</span></dd>
+        <dt>HR check</dt><dd>{{#if (eq r.hr_check "verified")}}{{badge "verified"}}{{else if (eq r.hr_check "not_found")}}<span class="badge badge--danger">Not found in HR</span>{{else}}<span class="badge badge--warning">Not checked: HR not connected</span>{{/if}}</dd>
+        <dt>Requested from</dt><dd class="num">{{default r.ip_address "—"}}</dd>
+        {{#if r.decided_at}}<dt>Decided</dt><dd>{{datetime r.decided_at}} by {{r.decided_by_name}}</dd>{{/if}}
+        {{#if r.decision_remarks}}<dt>Remarks</dt><dd>{{r.decision_remarks}}</dd>{{/if}}
+        {{#if r.user_id}}<dt>Account</dt><dd><a href="/users/{{r.user_id}}/edit">Open user account</a></dd>{{/if}}
+      </dl>
+    </div>
+  </section>
+  <div>
+    {{#if (eq r.status "pending")}}
+    {{#unless hrConnected}}<div class="alert alert--warning"><svg class="ic"><use href="#i-alert"/></svg><div>Nobody has checked these details with HR. Approving creates an Accounting Staff account that works immediately, so confirm the person with HR first.</div></div>{{/unless}}
+    {{> decision_form action=(concat "/users/requests/" r.id "/decision") csrf=csrfToken error=error remarks=remarks approveLabel="Approve and create account" placeholder="Required when rejecting; the person sees it when they try to sign in"}}
+    {{else}}
+    {{#if error}}<div class="alert alert--error" role="alert"><svg class="ic"><use href="#i-alert"/></svg><div>{{error}}</div></div>{{/if}}
+    <section class="card"><div class="card__body"><div class="empty empty--sm"><svg class="ic"><use href="#i-check-circle"/></svg><strong>Already decided</strong>{{humanize r.status}} {{timeAgo r.decided_at}}.</div></div></section>
+    {{/if}}
+  </div>
+</div>
+{{> app_shell_close}}

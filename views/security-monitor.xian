@@ -1,0 +1,38 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header"><div><h1>Security Monitor</h1><p>Sign-in activity, sensitive actions and system health, drawn from the audit trail.</p></div>
+  <div class="page-actions"><a class="btn btn--secondary" href="/settings/security/sign-ins"><svg class="ic"><use href="#i-clock"/></svg>Sign-in history</a></div></div>
+<div class="grid grid--2 mb">
+  <section class="card"><div class="card__header"><div><h2>System health</h2><p>Right now</p></div></div><div class="card__body">
+    <dl class="dl" style="grid-template-columns:1fr auto">
+      <dt>App running for</dt><dd class="num">{{health.uptimeHours}} h</dd>
+      <dt>Database response</dt><dd class="num">{{health.dbMs}} ms</dd>
+      <dt>Free disk space</dt><dd class="num">{{#if health.diskFreeGb}}{{health.diskFreeGb}} GB{{else}}—{{/if}}</dd>
+      <dt>Last automatic backup</dt><dd>{{#if health.lastBackup}}{{timeAgo health.lastBackup.created_at}}{{else}}<span class="muted">None yet</span>{{/if}}</dd>
+      <dt>Background jobs</dt><dd>{{#if health.schedulerOn}}{{badge "active"}}{{else}}{{badge "inactive"}}{{/if}}</dd>
+    </dl>
+    {{#if health.lastFailure}}<div class="alert alert--error" style="margin:14px 0 0"><svg class="ic"><use href="#i-alert"/></svg><div>The last automatic backup failed {{timeAgo health.lastFailure.created_at}}: {{health.lastFailure.remarks}}</div></div>{{/if}}
+    <p class="field__hint" style="margin-top:12px">For alerts when the app is down, point an uptime monitor at <code>/healthz</code>.</p>
+  </div></section>
+  <section class="card"><div class="card__header"><div><h2>Audit trail seal</h2><p>Detects any change to or removal of audit records</p></div></div><div class="card__body">
+    <dl class="dl" style="grid-template-columns:1fr auto">
+      <dt>Sealed records</dt><dd class="num">{{number health.sealed}}</dd>
+      <dt>Waiting to be sealed</dt><dd class="num">{{number health.unsealed}}</dd>
+      <dt>Last check</dt><dd>{{#if health.lastVerify}}{{#if (eq health.lastVerify.decision "approved")}}{{badge "verified"}}{{else}}<span class="badge badge--danger">Failed</span>{{/if}} {{timeAgo health.lastVerify.created_at}}{{else}}<span class="muted">Never</span>{{/if}}</dd>
+    </dl>
+    {{#if health.lastVerify.remarks}}<p class="field__hint" style="margin-top:8px">{{health.lastVerify.remarks}}</p>{{/if}}
+    <form method="POST" action="/settings/security/verify-audit" style="margin-top:14px"><input type="hidden" name="_csrf" value="{{csrfToken}}"><button class="btn btn--primary btn--block" type="submit">Verify audit trail now</button></form>
+  </div></section>
+</div>
+<div class="grid grid--kpi">
+  <div class="kpi {{#if (gt failed24 10)}}kpi--danger{{/if}}"><div class="kpi__icon"><svg class="ic"><use href="#i-alert"/></svg></div><div><div class="kpi__label">Failed sign-ins (24 h)</div><div class="kpi__value">{{failed24}}</div><div class="kpi__hint">{{failed7}} in the last 7 days</div></div></div>
+  <div class="kpi {{#if locked.length}}kpi--warning{{/if}}"><div class="kpi__icon"><svg class="ic"><use href="#i-lock"/></svg></div><div><div class="kpi__label">Locked accounts</div><div class="kpi__value">{{locked.length}}</div></div></div>
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-users"/></svg></div><div><div class="kpi__label">Users signed in</div><div class="kpi__value">{{sessions}}</div></div></div>
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-key"/></svg></div><div><div class="kpi__label">Temporary passwords</div><div class="kpi__value">{{tempPasswords}}</div><div class="kpi__hint">Not yet changed by the user</div></div></div>
+</div>
+{{#if locked.length}}<section class="card mb"><div class="card__header"><h2>Locked accounts</h2></div><div class="card__body card__body--flush"><ul class="list">{{#each locked}}<li class="list__item"><span class="dot"></span><div class="list__body"><strong>{{full_name}}</strong><small>{{email}} · until {{datetime locked_until}}</small></div><a class="btn btn--secondary btn--sm" href="/users/{{id}}/edit">Manage</a></li>{{/each}}</ul></div></section>{{/if}}
+<div class="grid grid--2">
+  <section class="card"><div class="card__header"><h2>Recent failed sign-ins</h2></div><div class="card__body card__body--flush">{{#if recentFailed.length}}<ul class="list">{{#each recentFailed}}<li class="list__item"><span class="dot"></span><div class="list__body"><strong>{{default email (default user_name "Unknown")}}</strong><small>{{humanize action}} · {{ip_address}} · {{timeAgo created_at}}</small></div></li>{{/each}}</ul>{{else}}<div class="empty empty--sm">No failed sign-ins recorded.</div>{{/if}}</div></section>
+  <section class="card"><div class="card__header"><div><h2>Sensitive actions</h2><p>Latest 25</p></div>{{#if (can "audit.view")}}<a class="btn btn--ghost btn--sm" href="/audit">Full audit log</a>{{/if}}</div><div class="card__body card__body--flush">{{#if sensitive.length}}<ul class="list">{{#each sensitive}}<li class="list__item"><span class="dot"></span><div class="list__body"><strong>{{humanize action}}</strong><small>{{default user_name "System"}}{{#if remarks}} · {{remarks}}{{/if}} · {{timeAgo created_at}}</small></div></li>{{/each}}</ul>{{else}}<div class="empty empty--sm">None recorded.</div>{{/if}}</div></section>
+</div>
+{{> app_shell_close}}

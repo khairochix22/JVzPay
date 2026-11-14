@@ -1,0 +1,43 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><h1>Government Enrollment</h1><p>Your SSS, PhilHealth, Pag-IBIG and BIR numbers. They are encrypted and shown masked; payroll uses new numbers only after Payroll Staff verify them.</p></div>
+</div>
+{{#if errors.form}}<div class="alert alert--error" role="alert"><svg class="ic"><use href="#i-alert"/></svg><div>{{errors.form}}</div></div>{{/if}}
+
+<div class="grid grid--main-side mb">
+  <section class="card">
+    <div class="card__header"><div><h2>Numbers on file</h2><p>Used for your contributions and tax</p></div></div>
+    <div class="card__body card__body--flush" style="padding-top:8px"><ul class="list">
+      {{#each onFile}}<li class="list__item"><div class="list__body"><strong>{{label}}</strong><small>{{#if masked}}{{masked}}{{else}}Not on file yet{{/if}}</small></div>{{#if masked}}<span class="badge badge--success">On file</span>{{else}}<span class="badge badge--warning">Missing</span>{{/if}}</li>{{/each}}
+    </ul></div>
+  </section>
+  <section class="card">
+    <div class="card__header"><div><h2>Enroll or update</h2><p>Fill in only what is new or changed</p></div></div>
+    <div class="card__body">
+      {{#if pending}}<div class="alert alert--info"><svg class="ic"><use href="#i-clock"/></svg><div>You have a request waiting for verification. You can send another once it is decided, or cancel it below.</div></div>
+      {{else}}
+      <form method="POST" action="/my/government/requests" enctype="multipart/form-data" novalidate autocomplete="off">
+        <input type="hidden" name="_csrf" value="{{csrfToken}}">
+        <div class="form-grid" style="grid-template-columns:1fr">
+          {{#each gov}}<div class="field"><label for="{{key}}">{{label}}</label><input class="input" id="{{key}}" name="{{key}}" inputmode="numeric" autocomplete="off" placeholder="{{hint}}"{{#with (lookup ../errors key)}} aria-invalid="true"{{/with}}>{{#with (lookup ../errors key)}}<span class="field__error">{{this}}</span>{{/with}}</div>{{/each}}
+          <div class="field"><label for="attachment">Proof (ID card, E-1 / MDR form, TIN card)</label><input class="input" type="file" id="attachment" name="attachment" accept=".pdf,.jpg,.jpeg,.png">{{#if errors.attachment}}<span class="field__error">{{errors.attachment}}</span>{{/if}}<span class="field__hint">PDF, JPG or PNG up to 5 MB. Optional, but it speeds up verification.</span></div>
+        </div>
+        <button type="submit" class="btn btn--primary btn--block" style="margin-top:18px"><svg class="ic"><use href="#i-send"/></svg>Submit for verification</button>
+      </form>
+      {{/if}}
+    </div>
+  </section>
+</div>
+
+<section class="card">
+  <div class="card__header"><div><h2>Request history</h2></div></div>
+  <div class="card__body card__body--flush">
+    {{#if requests.length}}<div class="table-wrap"><table class="table table--stack"><thead><tr><th>Request</th><th>Numbers</th><th>Status</th><th class="actions"><span class="sr-only">Actions</span></th></tr></thead><tbody>
+    {{#each requests}}<tr><td class="cell-primary"><strong>{{request_no}}</strong><br><span class="muted">{{datetime submitted_at}}</span></td><td data-label="Numbers">{{fields}}</td><td data-label="Status">{{badge status}}{{#if decision_remarks}}<br><span class="muted">“{{decision_remarks}}”</span>{{/if}}</td>
+      <td class="actions">{{#if (eq status "pending")}}<form method="POST" action="/my/government/requests/{{id}}/cancel"><input type="hidden" name="_csrf" value="{{../csrfToken}}"><button class="btn btn--secondary btn--sm" type="submit">Cancel</button></form>{{/if}}</td></tr>{{/each}}
+    </tbody></table></div>
+    {{else}}<div class="empty empty--sm"><svg class="ic"><use href="#i-shield"/></svg><strong>No requests yet</strong></div>{{/if}}
+  </div>
+</section>
+{{> app_shell_close}}

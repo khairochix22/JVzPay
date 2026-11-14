@@ -1,0 +1,81 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><h1>Accounts Payable</h1><p>Supplier invoices: Accounting Staff record them, the Accounting Supervisor approves them into Accounts Payable, and payments clear them. Invoices from Inventory are matched against the purchase order and goods receipt.</p></div>
+</div>
+
+<div class="grid grid--kpi">
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-file-text"/></svg></div><div><div class="kpi__label">Open payables</div><div class="kpi__value">{{money totals.open}}</div><div class="kpi__hint">{{totals.n}} unpaid invoice(s)</div></div></div>
+  <div class="kpi {{#if (gt totals.overdue 0)}}kpi--danger{{/if}}"><div class="kpi__icon"><svg class="ic"><use href="#i-alert"/></svg></div><div><div class="kpi__label">Overdue</div><div class="kpi__value">{{money totals.overdue}}</div><div class="kpi__hint">Past the due date</div></div></div>
+</div>
+
+<div class="grid grid--main-side mb">
+  <section class="card">
+    <div class="card__header"><div><h2>Record a supplier invoice</h2><p>It is posted only after the Accounting Supervisor approves it.</p></div></div>
+    <form class="card__body" method="POST" action="/accounting/payables/invoices" enctype="multipart/form-data" novalidate>
+      <input type="hidden" name="_csrf" value="{{csrfToken}}">
+      {{#if errors.form}}<div class="alert alert--error" role="alert"><svg class="ic"><use href="#i-alert"/></svg><div>{{errors.form}}</div></div>{{/if}}
+      <div class="form-grid" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr))">
+        <div class="field"><label for="supplier_id">Supplier <span class="req">*</span></label><select class="select" id="supplier_id" name="supplier_id"><option value="">Select</option>{{#each activeSuppliers}}<option value="{{id}}" {{selected id ../form.supplier_id}}>{{name}}</option>{{/each}}</select>{{#if errors.supplier_id}}<span class="field__error">{{errors.supplier_id}}</span>{{/if}}</div>
+        {{> field name="invoice_no" label="Supplier's invoice no." required=true value=form.invoice_no error=errors.invoice_no}}
+        {{> field name="invoice_date" label="Invoice date" type="date" required=true value=form.invoice_date error=errors.invoice_date}}
+        {{> field name="due_date" label="Due date" type="date" value=form.due_date error=errors.due_date hint="Blank: the supplier's payment terms"}}
+        {{> field name="amount" label="Amount (₱)" required=true value=form.amount error=errors.amount inputmode="decimal"}}
+        <div class="field"><label for="debit_account_id">What was bought <span class="req">*</span></label><select class="select" id="debit_account_id" name="debit_account_id"><option value="">Select</option>{{#each accounts}}<option value="{{id}}" {{selected id ../form.debit_account_id}}>{{code}} · {{name}}</option>{{/each}}</select>{{#if errors.debit_account_id}}<span class="field__error">{{errors.debit_account_id}}</span>{{/if}}</div>
+        <div class="span-2">{{> field name="description" label="Description" required=true value=form.description error=errors.description}}</div>
+        {{> field name="purchase_order_ref" label="Inventory purchase order" value=form.purchase_order_ref hint="For merchandise: matched with Inventory"}}
+        {{> field name="goods_receipt_ref" label="Goods receipt" value=form.goods_receipt_ref}}
+        <div class="field"><label for="attachment">Invoice copy</label><input class="input" type="file" id="attachment" name="attachment" accept=".pdf,.jpg,.jpeg,.png">{{#if errors.attachment}}<span class="field__error">{{errors.attachment}}</span>{{/if}}</div>
+      </div>
+      <div class="form-actions"><button class="btn btn--primary" type="submit"><svg class="ic"><use href="#i-send"/></svg>Submit for approval</button></div>
+    </form>
+  </section>
+  <section class="card">
+    <div class="card__header"><div><h2>Suppliers</h2></div></div>
+    <form class="card__body" method="POST" action="/accounting/payables/suppliers" novalidate>
+      <input type="hidden" name="_csrf" value="{{csrfToken}}">
+      <div class="form-grid" style="grid-template-columns:1fr">
+        {{> field name="name" label="New supplier" required=true value=supForm.name error=supErrors.name}}
+        {{> field name="payment_terms_days" label="Payment terms (days)" type="number" value=(default supForm.payment_terms_days 30) error=supErrors.payment_terms_days}}
+      </div>
+      <button class="btn btn--secondary btn--block" type="submit" style="margin-top:12px"><svg class="ic"><use href="#i-plus"/></svg>Add supplier</button>
+    </form>
+    <div class="card__body card__body--flush">{{#if suppliers.length}}<ul class="list">{{#each suppliers}}<li class="list__item"><div class="list__body"><strong>{{name}}</strong><small>{{payment_terms_days}}-day terms{{#if inventory_ref}} · from Inventory{{/if}}</small></div><span class="num">{{money balance}}</span></li>{{/each}}</ul>{{/if}}</div>
+  </section>
+</div>
+
+<section class="card">
+  <form class="toolbar" method="GET" action="/accounting/payables">
+    <div class="input-group search"><svg class="ic"><use href="#i-search"/></svg><label class="sr-only" for="q">Search</label><input class="input" type="search" id="q" name="q" value="{{t.q}}" placeholder="Supplier, invoice or description" data-autosubmit></div>
+    <select class="select" name="status" data-autosubmit aria-label="Status"><option value="">All statuses</option>{{#each (array "open" "pending_approval" "unpaid" "partially_paid" "paid" "rejected" "voided")}}<option value="{{this}}" {{selected ../status this}}>{{humanize this}}</option>{{/each}}</select>
+  </form>
+  <div class="table-wrap"><table class="table table--stack"><thead><tr><th>Invoice</th><th>Supplier</th><th>Due</th><th class="text-right">Amount</th><th class="text-right">Balance</th><th>Status</th><th class="actions"><span class="sr-only">Actions</span></th></tr></thead><tbody>
+  {{#each rows}}<tr>
+    <td class="cell-primary"><strong>{{internal_no}}</strong> · {{invoice_no}}<br><span class="muted">{{description}} · {{account_code}}{{#if purchase_order_ref}} · PO {{purchase_order_ref}}{{/if}}</span>{{#if (eq match_status "unmatched")}}<br><span class="field__error">{{match_note}}</span>{{/if}}{{#if (eq match_status "matched")}}<br><span class="badge badge--success">Three-way matched</span>{{/if}}</td>
+    <td data-label="Supplier">{{supplier_name}}</td>
+    <td data-label="Due" class="nowrap">{{date due_date}}{{#if overdue}} <span class="badge badge--danger">Overdue</span>{{/if}}</td>
+    <td data-label="Amount" class="text-right num">{{money amount}}</td>
+    <td data-label="Balance" class="text-right num">{{money balance}}</td>
+    <td data-label="Status">{{badge status}}{{#if decision_remarks}}<br><span class="muted">“{{decision_remarks}}”</span>{{/if}}</td>
+    <td class="actions">
+      {{#if (eq status "pending_approval")}}{{#if ../canApprove}}
+        <form method="POST" action="/accounting/payables/invoices/{{id}}/decision" style="display:inline"><input type="hidden" name="_csrf" value="{{../../csrfToken}}"><button class="btn btn--primary btn--sm" name="action" value="approve" type="submit">Approve</button></form>
+        <form method="POST" action="/accounting/payables/invoices/{{id}}/decision" style="display:inline-flex;gap:6px"><input type="hidden" name="_csrf" value="{{../../csrfToken}}"><input class="input" name="remarks" placeholder="Reason" aria-label="Reason for rejecting" style="min-height:36px;width:120px"><button class="btn btn--secondary btn--sm" name="action" value="reject" type="submit">Reject</button></form>
+      {{/if}}{{/if}}
+      {{#if (or (eq status "unpaid") (eq status "partially_paid"))}}
+        <form method="POST" action="/accounting/payables/invoices/{{id}}/payments" style="display:inline-flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+          <input type="hidden" name="_csrf" value="{{../csrfToken}}">
+          <input class="input" name="amount" value="{{balance}}" inputmode="decimal" aria-label="Amount" style="min-height:36px;width:110px">
+          <input class="input" type="date" name="payment_date" value="{{../today}}" aria-label="Payment date" style="min-height:36px;width:150px">
+          <select class="select" name="cash_account_id" aria-label="Paid from" style="min-height:36px;width:auto">{{#each ../cash}}<option value="{{id}}">{{name}}</option>{{/each}}</select>
+          <select class="select" name="method" aria-label="Method" style="min-height:36px;width:auto">{{#each ../methods}}<option value="{{this}}">{{humanize this}}</option>{{/each}}</select>
+          <button class="btn btn--primary btn--sm" type="submit">Pay</button>
+        </form>
+        {{#if (eq status "unpaid")}}{{#if ../canApprove}}<form method="POST" action="/accounting/payables/invoices/{{id}}/void" data-confirm="Void this invoice? Its journal entry will be reversed." data-confirm-tone="danger" data-confirm-label="Void" style="display:inline-flex;gap:6px"><input type="hidden" name="_csrf" value="{{../../csrfToken}}"><input class="input" name="reason" placeholder="Reason" aria-label="Reason for voiding" style="min-height:36px;width:110px"><button class="btn btn--ghost btn--sm" type="submit">Void</button></form>{{/if}}{{/if}}
+      {{/if}}
+    </td>
+  </tr>{{else}}<tr><td colspan="7"><div class="empty empty--sm"><svg class="ic"><use href="#i-file-text"/></svg><strong>No supplier invoices</strong></div></td></tr>{{/each}}
+  </tbody></table></div>
+  {{> pager}}
+</section>
+{{> app_shell_close}}

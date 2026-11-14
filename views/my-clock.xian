@@ -1,0 +1,50 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><h1>Time Clock</h1><p>Punch in and out at the start and end of your shift, and out and back in for every break and for lunch, following the schedule HR plotted. Breaks are paid; lunch is not. Every minute past a break or lunch — including forgetting to punch back in — is deducted from your pay and shown on your payslip as lost hours.</p></div>
+  <div class="page-actions"><a class="btn btn--secondary" href="/my/schedule"><svg class="ic"><use href="#i-calendar"/></svg>My schedule</a></div>
+</div>
+
+<div class="grid grid--kpi">
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-calendar"/></svg></div><div><div class="kpi__label">Today</div><div class="kpi__value">{{date date}}</div><div class="kpi__hint">Page loaded at {{this.time}} (Philippine time)</div></div></div>
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-clock"/></svg></div><div><div class="kpi__label">Today's schedule</div><div class="kpi__value">{{#if schedule.dayOff}}Day off{{else}}{{schedule.shift_start}}–{{schedule.shift_end}}{{/if}}</div><div class="kpi__hint">{{#unless schedule.dayOff}}Lunch {{schedule.lunch_start}}–{{schedule.lunch_end}} · {{/unless}}{{#if (eq schedule.source "hr")}}plotted by HR{{else}}company default{{/if}}</div></div></div>
+  <div class="kpi {{#if record}}{{#if (eq record.status "late")}}kpi--warning{{/if}}{{/if}}"><div class="kpi__icon"><svg class="ic"><use href="#i-check-circle"/></svg></div><div><div class="kpi__label">Today's record</div><div class="kpi__value">{{#if record}}{{humanize record.status}}{{else}}Not started{{/if}}</div><div class="kpi__hint">{{#if record}}{{fixed record.hours_worked 2}} h · late {{record.late_minutes}} min · undertime {{record.undertime_minutes}} min · lost {{record.overbreak_minutes}} min{{else}}Punch in to start the day{{/if}}</div></div></div>
+</div>
+
+{{#unless active}}<div class="alert alert--warning mb" role="alert"><svg class="ic"><use href="#i-alert"/></svg><div>The time clock is for active employees. Your HR record says <strong>{{humanize employmentStatus}}</strong>. Ask HR to correct it if this is wrong.</div></div>{{/unless}}
+{{#if dayOff}}<div class="alert alert--info mb" role="status"><svg class="ic"><use href="#i-info"/></svg><div>Today is one of your days off. Work today is paid only through approved rest-day overtime.</div></div>{{/if}}
+{{#if holiday}}<div class="alert alert--info mb" role="status"><svg class="ic"><use href="#i-info"/></svg><div>Today is {{holiday.name}} ({{humanize holiday.holiday_type}}).</div></div>{{/if}}
+{{#if leave}}<div class="alert alert--info mb" role="status"><svg class="ic"><use href="#i-info"/></svg><div>Approved leave today: {{leave.name}} ({{leave.application_no}}, {{leave.days}} day).</div></div>{{/if}}
+
+<section class="card mb">
+  <div class="card__header"><div><h2>Punch</h2><p class="muted">{{#if finished}}Your day is complete.{{else}}Only the next step can be punched.{{/if}}</p></div></div>
+  <div class="card__body">
+    {{#if active}}{{#unless finished}}
+    <form method="POST" action="/my/clock/punch" class="page-actions" style="flex-wrap:wrap;gap:10px">
+      <input type="hidden" name="_csrf" value="{{csrfToken}}">
+      {{#each allowed}}<button class="btn {{#if isBreak}}btn--secondary{{else}}btn--primary{{/if}}" type="submit" name="punch_type" value="{{type}}"><svg class="ic"><use href="#i-clock"/></svg>{{label}}</button>{{/each}}
+    </form>
+    {{/unless}}{{/if}}
+    <div class="table-wrap" style="margin-top:16px"><table class="table table--stack"><thead><tr><th>Step</th><th>Plotted</th><th>Punched</th><th>Status</th></tr></thead><tbody>
+      {{#each punches}}<tr><td class="cell-primary">{{#if isBreak}}<span class="muted">↳</span> {{/if}}<strong>{{label}}</strong></td>
+        <td data-label="Plotted" class="num muted">{{#if planned}}{{planned}}{{else}}—{{/if}}</td>
+        <td data-label="Punched" class="num">{{#if at}}{{at}}{{else}}—{{/if}}</td>
+        <td data-label="Status">{{#if at}}<span class="badge badge--success">Recorded</span>{{else}}{{#if allowed}}<span class="badge badge--info">Next</span>{{else}}<span class="muted">—</span>{{/if}}{{/if}}</td></tr>{{/each}}
+    </tbody></table></div>
+  </div>
+</section>
+
+<section class="card">
+  <div class="card__header"><div><h2>Last two weeks</h2><p class="muted">Payroll Staff validate each day before it is paid.</p></div></div>
+  <div class="card__body card__body--flush">
+    {{#if history.length}}<div class="table-wrap"><table class="table table--stack"><thead><tr><th>Date</th><th>Punches</th><th class="text-right">Hours</th><th class="text-right">Late / undertime / lost</th><th>Status</th></tr></thead><tbody>
+    {{#each history}}<tr><td class="cell-primary"><strong>{{date work_date}}</strong></td>
+      <td data-label="Punches">{{#if punchList.length}}{{#each punchList}}<span class="nowrap">{{label}} {{at}}</span>{{#unless @last}} · {{/unless}}{{/each}}{{else}}<span class="muted">{{#if time_in}}{{time_in}}–{{time_out}} (encoded){{else}}—{{/if}}</span>{{/if}}</td>
+      <td data-label="Hours" class="text-right num">{{fixed hours_worked 2}}</td>
+      <td data-label="Late / undertime / lost" class="text-right num">{{late_minutes}} / {{undertime_minutes}} / {{overbreak_minutes}} min</td>
+      <td data-label="Status">{{badge status}} {{badge validation_status}}</td></tr>{{/each}}
+    </tbody></table></div>
+    {{else}}<div class="empty empty--sm"><svg class="ic"><use href="#i-clock"/></svg><strong>No attendance in the last two weeks</strong></div>{{/if}}
+  </div>
+</section>
+{{> app_shell_close}}

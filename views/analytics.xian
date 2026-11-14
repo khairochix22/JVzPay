@@ -1,0 +1,72 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header"><div><h1>Data Analytics</h1><p>Based on finalized payroll, recorded attendance and posted journals. Filters apply to everything below except the forecast's history window. A Month or Year replaces From and To.</p></div></div>
+
+<form class="card mb no-print" method="GET" action="/analytics" style="padding:14px 18px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+  <div class="field"><label for="year">Year</label><select class="select" id="year" name="year"><option value="">Any</option>{{#each years}}<option value="{{this}}" {{selected this ../d.f.year}}>{{this}}</option>{{/each}}</select></div>
+  <div class="field"><label for="month">Month</label><input class="input" type="month" id="month" name="month" value="{{d.f.month}}"></div>
+  <div class="field"><label for="from">From month</label><input class="input" type="month" id="from" name="from" value="{{d.f.from}}"></div>
+  <div class="field"><label for="to">To month</label><input class="input" type="month" id="to" name="to" value="{{d.f.to}}"></div>
+  <div class="field"><label for="period">Payroll period</label><select class="select" id="period" name="period"><option value="">All</option>{{#each periods}}<option value="{{id}}" {{selected id ../d.f.period}}>{{label}}</option>{{/each}}</select></div>
+  <div class="field"><label for="department">Department</label><select class="select" id="department" name="department"><option value="">All</option>{{#each departments}}<option value="{{id}}" {{selected id ../d.f.department}}>{{name}}</option>{{/each}}</select></div>
+  <div class="field"><label for="employee">Employee</label><select class="select" id="employee" name="employee"><option value="">All</option>{{#each employees}}<option value="{{id}}" {{selected id ../d.f.employee}}>{{label}}</option>{{/each}}</select></div>
+  {{#if showFinance}}<div class="field"><label for="category">Expense category</label><select class="select" id="category" name="category"><option value="">All</option>{{#each categories}}<option value="{{id}}" {{selected id ../d.f.category}}>{{name}}</option>{{/each}}</select></div>{{/if}}
+  <button class="btn btn--primary" type="submit">Apply</button><a class="btn btn--ghost" href="/analytics">Reset</a>
+</form>
+
+<div class="grid grid--kpi">
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-wallet"/></svg></div><div><div class="kpi__label">Payroll cost</div><div class="kpi__value">{{money d.kpis.cost}}</div><div class="kpi__hint">{{> trend v=d.kpis.costChange}}</div></div></div>
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-users"/></svg></div><div><div class="kpi__label">Cost per employee</div><div class="kpi__value">{{money d.kpis.avg}}</div><div class="kpi__hint">{{d.kpis.people}} employee(s) paid</div></div></div>
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-trending-up"/></svg></div><div><div class="kpi__label">Overtime share of gross</div><div class="kpi__value">{{d.kpis.otShare}}%</div></div></div>
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-clock"/></svg></div><div><div class="kpi__label">Attendance rate</div><div class="kpi__value">{{#if d.kpis.attendance}}{{d.kpis.attendance}}%{{else}}—{{/if}}</div><div class="kpi__hint">{{d.kpis.late}} late · {{d.kpis.absent}} absent</div></div></div>
+  {{#if showFinance}}
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-receipt"/></svg></div><div><div class="kpi__label">Revenue</div><div class="kpi__value">{{money d.kpis.revenue}}</div><div class="kpi__hint">{{> trend v=d.kpis.revenueChange}}</div></div></div>
+  <div class="kpi {{#if (lt d.kpis.net 0)}}kpi--danger{{else}}kpi--success{{/if}}"><div class="kpi__icon"><svg class="ic"><use href="#i-check-circle"/></svg></div><div><div class="kpi__label">Net income</div><div class="kpi__value">{{money d.kpis.net}}</div></div></div>
+  {{/if}}
+</div>
+
+<h2 class="section-title">Payroll</h2>
+<div class="grid grid--2 mb">
+  {{> chart_card title="Monthly payroll expense" subtitle="Earned pay plus employer contributions, matching the books" config=cfg.trend emptyText="Appears once payroll is finalized."}}
+  {{> chart_card title="Gross pay vs net pay" subtitle="By payroll period end month" config=cfg.grossNet emptyText="Appears once payroll is finalized."}}
+  {{> chart_card title="Deduction analysis" subtitle="Share of amounts deducted from employees" config=cfg.deductions emptyText="Appears once payroll is finalized."}}
+  {{> chart_card title="Overtime expense" subtitle="Approved overtime paid" config=cfg.overtime emptyText="No overtime paid in this range."}}
+  {{> chart_card title="Employee salary distribution" subtitle="Current active employees, monthly-equivalent rate" config=cfg.salary emptyText="Add employees to see this."}}
+</div>
+
+<h2 class="section-title">Attendance</h2>
+<div class="grid grid--2 mb">
+  {{> chart_card title="Attendance patterns by weekday" subtitle="Late and absent days" config=cfg.weekday emptyText="No late or absent records in this range."}}
+  {{> chart_card title="Absence and lateness by department" subtitle="Late and absent days" config=cfg.byDept emptyText="No late or absent records in this range."}}
+</div>
+
+{{#if showFinance}}
+<h2 class="section-title">Financial performance</h2>
+<div class="grid grid--2 mb">
+  {{> chart_card title="Monthly operating expenses" subtitle="Excludes salaries, overtime and employer contributions" config=cfg.opex emptyText="No expenses posted in this range."}}
+  {{> chart_card title="Operating expenses by account" subtitle="Share of the selected range" config=cfg.opexPie emptyText="No expenses posted in this range."}}
+  {{> chart_card title="Revenue vs expenses" subtitle="From posted journals" config=cfg.revExp emptyText="Nothing posted in this range."}}
+  {{> chart_card title="Financial performance trend" subtitle="Net income per month" config=cfg.netIncome emptyText="Nothing posted in this range."}}
+</div>
+{{/if}}
+
+<h2 class="section-title">Payroll cost forecast</h2>
+<div class="grid grid--main-side mb">
+  {{#if d.forecast}}
+    {{> chart_card title="Payroll cost forecast" subtitle=(concat d.forecast.first " to " d.forecast.last " · projection, not actual transactions") config=cfg.forecast emptyText=""}}
+    <section class="card"><div class="card__header"><div><h2>Projected months</h2><p>80% range</p></div></div>
+      <div class="card__body"><table class="viz-table"><thead><tr><th>Month</th><th class="v">Projection</th><th class="v">Likely range</th></tr></thead><tbody>
+        {{#each d.forecast.rows}}<tr><td>{{month}}</td><td class="v">{{money value}}</td><td class="v">{{money lower}} – {{money upper}}</td></tr>{{/each}}</tbody></table>
+        <p class="field__hint" style="margin-top:12px"><strong>Method:</strong> straight-line (least-squares) trend on {{d.forecast.n}} complete month(s) of finalized payroll cost. <strong>Assumes</strong> headcount, rates and contribution rules continue as they have; it cannot anticipate hiring, raises or law changes. With few months of history the range is wide and should be treated as a rough guide only.</p></div></section>
+  {{else}}
+    <section class="card" style="grid-column:1/-1"><div class="empty"><svg class="ic"><use href="#i-trending-up"/></svg><strong>Not enough history to forecast</strong>A forecast needs at least 3 complete months of finalized payroll.</div></section>
+  {{/if}}
+</div>
+
+<section class="card"><div class="card__header"><div><h2>Employee compensation summary</h2><p>By department</p></div></div>
+  {{#if d.comp.length}}<div class="table-wrap" style="margin-top:10px"><table class="table table--stack"><thead><tr><th>Department</th><th class="text-right">Employees</th><th class="text-right">Gross</th><th class="text-right">Net</th><th class="text-right">Employer share</th></tr></thead>
+    <tbody>{{#each d.comp}}<tr><td class="cell-primary"><strong>{{department}}</strong></td><td data-label="Employees" class="text-right num">{{employees}}</td><td data-label="Gross" class="text-right num">{{money gross}}</td><td data-label="Net" class="text-right num">{{money net}}</td><td data-label="Employer" class="text-right num">{{money employer}}</td></tr>{{/each}}</tbody></table></div>
+  {{else}}<div class="empty empty--sm">Appears once payroll is finalized.</div>{{/if}}</section>
+<script src="/vendor/chartjs/chart.umd.min.js"></script>
+<script src="/js/charts.js"></script>
+{{> app_shell_close}}

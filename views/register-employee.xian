@@ -1,0 +1,59 @@
+{{> app_head}}
+<div class="auth">
+  {{#> auth_hero headline="Welcome to JOHNVIVZ." lead="Create the account you will use in your department, with your own Self-Service for payslips, leave and attendance."}}
+  <ul class="auth__points auth__points--check">
+    <li><span class="auth__point-ic"><svg class="ic"><use href="#i-check"/></svg></span><span>Checked against HR's records</span></li>
+    <li><span class="auth__point-ic"><svg class="ic"><use href="#i-check"/></svg></span><span>Active as soon as it matches</span></li>
+    <li><span class="auth__point-ic"><svg class="ic"><use href="#i-check"/></svg></span><span>Opens your own department only</span></li>
+  </ul>
+  {{/auth_hero}}
+
+  <main class="auth__panel">
+    <div class="auth__card">
+      <div class="auth__mobile-brand"><img class="auth__logo" src="/img/johnvivz-logo-trim.png" alt="JohnVivz" width="120" height="65"><span>JVzPay<small>Manage · Pay · Grow</small></span></div>
+      <div class="auth__head auth__head--left">
+        <h1>Create your employee account</h1>
+        <p>For new hires of {{company.name}}. Use the Employee ID and unique code HR gave you, and enter everything exactly as HR has it.</p>
+      </div>
+      {{#if errors.form}}<div class="alert alert--error" role="alert"><svg class="ic"><use href="#i-alert"/></svg><div>{{errors.form}}</div></div>{{/if}}
+
+      <form method="POST" action="/register/employee" novalidate>
+        <input type="hidden" name="_csrf" value="{{csrfToken}}">
+        <div class="form-grid">
+          {{> field fieldIcon="hash" name="employee_no" label="Employee ID" required=true value=form.employee_no error=errors.employee_no autocomplete="off" placeholder="e.g. JV-0012"}}
+          {{> field fieldIcon="user" name="full_name" label="Full name" required=true value=form.full_name error=errors.full_name autocomplete="name" placeholder="As it appears in HR records"}}
+          <div class="field">
+            <label for="department_id">Department <span class="req" aria-hidden="true">*</span></label>
+            <div class="input-icon"><svg class="ic"><use href="#i-briefcase"/></svg>
+              <select class="select" id="department_id" name="department_id" required>
+                <option value="">Choose your department</option>
+                {{#each departments}}<option value="{{id}}" {{selected ../form.department_id id}}>{{name}}</option>{{/each}}
+              </select>
+            </div>
+            {{#if errors.department_id}}<span class="field__error">{{errors.department_id}}</span>{{/if}}
+          </div>
+          <div class="field">
+            <label for="position_title">Position <span class="req" aria-hidden="true">*</span></label>
+            <div class="input-icon"><svg class="ic"><use href="#i-user"/></svg>
+              <select class="select" id="position_title" name="position_title" required>
+                <option value="">Choose your position</option>
+                {{#each positions}}<option value="{{title}}" data-department-id="{{department_id}}" {{selected ../form.position_title title}}>{{title}}</option>{{/each}}
+              </select>
+            </div>
+            {{#if errors.position_title}}<span class="field__error">{{errors.position_title}}</span>{{/if}}
+          </div>
+          {{> field fieldIcon="key" name="verification_code" label="Unique code from HR" required=true value=form.verification_code error=errors.verification_code autocomplete="off"}}
+                    {{> field fieldIcon="mail" name="email" label="Email you gave HR" type="email" required=true value=form.email error=errors.email autocomplete="email" inputmode="email"}}
+          {{> field fieldIcon="lock" reveal=true name="password" label="Password" type="password" required=true error=errors.password autocomplete="new-password" hint="At least 10 characters, with letters and numbers."}}
+          {{> field fieldIcon="lock" reveal=true name="confirm_password" label="Confirm password" type="password" required=true error=errors.confirm_password autocomplete="new-password"}}
+          <div class="field span-2"><label class="check check--sm"><input type="checkbox" name="privacy_ack" value="1"> <span>I have read the <a href="/privacy" target="_blank" rel="noopener">Privacy Notice</a> and understand how my information is used.</span></label>{{#if errors.privacy_ack}}<span class="field__error">{{errors.privacy_ack}}</span>{{/if}}</div>
+        </div>
+        <button type="submit" class="btn btn--primary btn--block btn--lg" style="margin-top:20px"><svg class="ic"><use href="#i-user-plus"/></svg>Create my account</button>
+      </form>
+      <p class="auth__alt">Already have an account? <a href="/login">Sign in</a> · <a href="/privacy">Privacy Notice</a></p>
+    </div>
+  </main>
+</div>
+<script src="/js/app.js"></script>
+</body>
+</html>

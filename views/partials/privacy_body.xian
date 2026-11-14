@@ -1,0 +1,37 @@
+<article class="legal">
+  <h1>Privacy Notice</h1>
+  <p class="muted">How {{company.name}} handles your personal information in JVzPay, as required by the Data Privacy Act of 2012 (Republic Act No. 10173).</p>
+
+  <h2>Who is responsible</h2>
+  <p>{{company.name}}, {{company.address}}, decides how this information is used and is responsible for protecting it.</p>
+
+  <h2>What is kept about you</h2>
+  <ul>
+    <li><strong>Identity and contact:</strong> name, gender, birth date, address, phone and email.</li>
+    <li><strong>Employment:</strong> employee ID, department, position, employment type and status, date hired, and past changes.</li>
+    <li><strong>Pay:</strong> salary rate and its history, payslips, earnings, deductions and contributions.</li>
+    <li><strong>Government numbers:</strong> SSS, PhilHealth, Pag-IBIG and TIN.</li>
+    <li><strong>Payroll bank account:</strong> bank name, account holder, account number and account type.</li>
+    <li><strong>Time and leave:</strong> attendance, overtime, leave applications, and documents you upload to support them.</li>
+    <li><strong>Account activity:</strong> sign-ins, IP address, and actions you take in JVzPay.</li>
+  </ul>
+
+  <h2>Why it is used</h2>
+  <p>To pay you correctly, compute and remit government contributions and taxes, manage attendance and leave, keep the store's accounting records, and keep this system secure. The store processes this information because your employment and Philippine labor, tax and social-security laws require it.</p>
+
+  <h2>How it is processed</h2>
+  <p>Your information is entered by you or by authorized payroll personnel and stored in JVzPay's database. JVzPay computes pay automatically from your attendance and pay records using set rules, and an Accounting Supervisor reviews each payroll before it is released. Nobody outside the store has automated access to JVzPay.</p>
+
+  <h2>Who can see it</h2>
+  <p>You can see your own records. Payroll Staff, Accounting Staff and the Accounting Supervisor can see only what their duties need, and the system enforces this. JVzPay does not send your information to outside services. The store gives the SSS, PhilHealth, the Pag-IBIG Fund, the Bureau of Internal Revenue and its payroll bank only what the law or payroll requires.</p>
+
+  <h2>How it is protected</h2>
+  <p>Bank and government numbers are encrypted when stored and masked on screen. Passwords are stored only in hashed form, idle sessions expire automatically, and sensitive actions are recorded in an audit log.</p>
+
+  <h2>How long it is kept</h2>
+  <p>{{#if privacy.retention}}{{privacy.retention}}{{else}}Records are kept for as long as labor, tax and accounting rules require.{{/if}} Finalized payroll and financial records cannot be silently changed or deleted; mistakes are fixed through a recorded correction.</p>
+
+  <h2>Your rights</h2>
+  <p>Under the Data Privacy Act you have the right to be informed, to access your information, to object, to have errors corrected, to have information blocked or removed when the law allows, to data portability, and to claim damages. You may also file a complaint with the National Privacy Commission. If you die or become incapacitated, your lawful heirs and assigns may exercise these rights for you.</p>
+  <p>You can review your records and update your contact details under My Profile. For any other request, contact {{#if privacy.person}}{{privacy.person}}, who is accountable for data privacy at {{company.name}}{{else}}the management of {{company.name}}{{/if}}{{#if privacy.email}}, at {{privacy.email}}{{/if}}{{#if privacy.phone}}{{#if privacy.email}} or{{else}},{{/if}} {{privacy.phone}}{{/if}}, or write to the address above.</p>
+</article>

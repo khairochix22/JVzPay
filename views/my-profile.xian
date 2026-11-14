@@ -1,0 +1,70 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div class="person">
+    <span class="avatar avatar--lg">{{initials e.name}}</span>
+    <div><h1>{{e.name}}</h1><p>{{e.position}} · {{e.department}} &nbsp; {{badge e.employment_status}}</p></div>
+  </div>
+</div>
+
+<div class="grid grid--main-side">
+  <div class="grid" style="align-content:start">
+    <section class="card">
+      <div class="card__header"><div><h2>Employment details</h2><p>Maintained by Payroll. Contact Payroll if anything here is wrong.</p></div><svg class="ic muted"><use href="#i-lock"/></svg></div>
+      <div class="card__body">
+        <dl class="dl">
+          <dt>Employee ID</dt><dd>{{e.employee_no}}</dd>
+          <dt>Department</dt><dd>{{e.department}}</dd>
+          <dt>Position</dt><dd>{{e.position}}</dd>
+          <dt>Employment type</dt><dd>{{humanize e.employment_type}}</dd>
+          <dt>Employment status</dt><dd>{{badge e.employment_status}}</dd>
+          <dt>Date hired</dt><dd>{{date e.date_hired}}</dd>
+          <dt>Payroll frequency</dt><dd>{{humanize e.pay_frequency}}</dd>
+          {{#if showSalary}}<dt>Basic salary / rate</dt><dd class="num">{{money e.basic_salary}} <span class="muted">({{humanize e.rate_basis}})</span></dd>{{/if}}
+        </dl>
+      </div>
+    </section>
+
+    <section class="card" id="contact">
+      <div class="card__header"><div><h2>Contact information</h2><p>You can update these details yourself.</p></div></div>
+      <form class="card__body" method="POST" action="/my/profile" novalidate>
+        <input type="hidden" name="_csrf" value="{{csrfToken}}">
+        {{#if (or errors.email errors.phone errors.municipality errors.province errors.address_line errors.barangay)}}<div class="alert alert--error" role="alert"><svg class="ic"><use href="#i-alert"/></svg><div>Please correct the highlighted fields.</div></div>{{/if}}
+        <div class="form-grid">
+          {{> field name="email" label="Personal email" type="email" value=form.email error=errors.email autocomplete="email"}}
+          {{> field name="phone" mask="phone" label="Mobile / phone" type="tel" value=form.phone error=errors.phone autocomplete="tel" placeholder="09XX XXX XXXX"}}
+          <div class="span-2">{{> field name="address_line" label="Street / address" value=form.address_line error=errors.address_line autocomplete="street-address"}}</div>
+          {{> field name="barangay" label="Barangay" value=form.barangay error=errors.barangay}}
+          {{> field name="municipality" label="Municipality" required=true value=form.municipality error=errors.municipality}}
+          {{> field name="province" label="Province" required=true value=form.province error=errors.province}}
+        </div>
+        <div class="form-actions"><button type="submit" class="btn btn--primary">Save contact details</button></div>
+      </form>
+    </section>
+  </div>
+
+  <div class="grid" style="align-content:start">
+    <section class="card">
+      <div class="card__header"><div><h2>Government IDs</h2><p>Masked for your protection</p></div><svg class="ic muted"><use href="#i-lock"/></svg></div>
+      <div class="card__body">
+        <dl class="dl" style="grid-template-columns:100px 1fr">
+          <dt>SSS</dt><dd class="num">{{gov.sss_no.display}}</dd>
+          <dt>PhilHealth</dt><dd class="num">{{gov.philhealth_no.display}}</dd>
+          <dt>Pag-IBIG</dt><dd class="num">{{gov.pagibig_no.display}}</dd>
+          <dt>TIN</dt><dd class="num">{{gov.tin.display}}</dd>
+        </dl>
+        <p class="field__hint" style="margin-top:12px">To change a government ID number, submit the document to Payroll.</p>
+      </div>
+    </section>
+    <section class="card">
+      <div class="card__header"><h2>Quick links</h2></div>
+      <div class="card__body"><div class="quick" style="grid-template-columns:1fr 1fr">
+        <a href="/my/payslips"><svg class="ic"><use href="#i-file-text"/></svg>Payslips</a>
+        <a href="/my/attendance"><svg class="ic"><use href="#i-clock"/></svg>Attendance</a>
+        <a href="/my/leave"><svg class="ic"><use href="#i-calendar"/></svg>Leave</a>
+        <a href="/my/bank"><svg class="ic"><use href="#i-bank"/></svg>Bank account</a>
+      </div></div>
+    </section>
+  </div>
+</div>
+{{> app_shell_close}}

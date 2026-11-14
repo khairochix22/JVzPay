@@ -1,0 +1,60 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><h1>Leave Types</h1><p>Company leave policy. Entitlements are credited to each employee per calendar year. Confirm them against your employment contracts and the Labor Code (e.g. Service Incentive Leave).</p></div>
+</div>
+
+<div class="grid grid--main-side">
+  <section class="card" style="align-self:start">
+    <div class="card__header"><h2>Configured types</h2></div>
+    <div class="card__body card__body--flush" style="padding-top:8px">
+      <div class="table-wrap"><table data-table-tools class="table table--stack">
+        <thead><tr><th>Type</th><th class="text-right">Days / year</th><th>Paid</th><th>Document</th><th>Negative</th><th>Status</th><th class="actions"><span class="sr-only">Edit</span></th></tr></thead>
+        <tbody>
+          {{#each types}}
+          <tr>
+            <td class="cell-primary"><strong>{{name}}</strong><br><span class="muted">{{code}}</span></td>
+            <td data-label="Days / year" class="text-right num">{{fixed annual_entitlement_days 1}}</td>
+            <td data-label="Paid">{{#if is_paid}}Yes{{else}}No{{/if}}</td>
+            <td data-label="Document">{{#if requires_attachment}}Beyond {{fixed attachment_after_days 0}} day(s){{else}}Not required{{/if}}</td>
+            <td data-label="Negative">{{#if allow_negative_balance}}Allowed{{else}}No{{/if}}</td>
+            <td data-label="Status">{{#if is_active}}{{badge "active"}}{{else}}{{badge "inactive"}}{{/if}}</td>
+            <td class="actions"><details><summary class="btn btn--ghost btn--sm" style="display:inline-flex">Edit</summary>
+              <form method="POST" action="/leave-types/{{id}}" class="grid" style="gap:10px;margin-top:10px;text-align:left;min-width:240px">
+                <input type="hidden" name="_csrf" value="{{../csrfToken}}">
+                <input class="input" name="code" value="{{code}}" aria-label="Code" required maxlength="20">
+                <input class="input" name="name" value="{{name}}" aria-label="Name" required maxlength="80">
+                <label class="field"><span class="label">Days per year</span><input class="input" name="annual_entitlement_days" value="{{annual_entitlement_days}}" inputmode="decimal" required></label>
+                <label class="check"><input type="checkbox" name="is_paid" value="1" {{#if is_paid}}checked{{/if}}> Paid</label>
+                <label class="check"><input type="checkbox" name="requires_attachment" value="1" {{#if requires_attachment}}checked{{/if}}> Requires document</label>
+                <label class="field"><span class="label">…beyond (days)</span><input class="input" name="attachment_after_days" value="{{attachment_after_days}}" inputmode="decimal"></label>
+                <label class="check"><input type="checkbox" name="allow_negative_balance" value="1" {{#if allow_negative_balance}}checked{{/if}}> Allow negative balance</label>
+                <label class="check"><input type="checkbox" name="is_active" value="1" {{#if is_active}}checked{{/if}}> Active</label>
+                <button class="btn btn--primary btn--sm" type="submit">Save</button>
+              </form></details></td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <section class="card" style="align-self:start">
+    <div class="card__header"><h2>Add leave type</h2></div>
+    <form class="card__body" method="POST" action="/leave-types" novalidate>
+      <input type="hidden" name="_csrf" value="{{csrfToken}}">
+      <div class="grid" style="gap:14px">
+        {{> field name="code" label="Code" required=true value=form.code error=errors.code placeholder="e.g. ML"}}
+        {{> field name="name" label="Name" required=true value=form.name error=errors.name placeholder="e.g. Maternity Leave"}}
+        {{> field name="annual_entitlement_days" label="Days per year" required=true value=form.annual_entitlement_days error=errors.annual_entitlement_days inputmode="decimal"}}
+        <label class="check"><input type="checkbox" name="is_paid" value="1" {{checked form.is_paid 1}}> Paid leave</label>
+        <label class="check"><input type="checkbox" name="requires_attachment" value="1" {{checked form.requires_attachment 1}}> Requires a supporting document</label>
+        {{> field name="attachment_after_days" label="…when longer than (days)" value=form.attachment_after_days error=errors.attachment_after_days inputmode="decimal" hint="0 = always required"}}
+        <label class="check"><input type="checkbox" name="allow_negative_balance" value="1" {{checked form.allow_negative_balance 1}}> Allow negative balance</label>
+        <label class="check"><input type="checkbox" name="is_active" value="1" {{checked form.is_active 1}}> Active</label>
+        <button class="btn btn--primary" type="submit"><svg class="ic"><use href="#i-plus"/></svg>Add leave type</button>
+      </div>
+    </form>
+  </section>
+</div>
+{{> app_shell_close}}

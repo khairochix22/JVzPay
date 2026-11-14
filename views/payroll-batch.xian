@@ -1,0 +1,98 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><div class="breadcrumb"><a href="/payroll">Payroll</a> / {{b.batch_no}}</div>
+    <h1>{{b.period_label}} &nbsp;{{badge b.status}}</h1>
+    <p>{{humanize b.pay_frequency}} · {{default b.department "All departments"}} · {{#if b.prepared_by_name}}prepared by {{b.prepared_by_name}}{{else}}computed automatically{{/if}}{{#if b.pay_date}} · payday {{date b.pay_date}}{{#if b.release_date}}{{#unless (eq b.release_date b.pay_date)}} · released {{date b.release_date}} (weekend or holiday){{/unless}}{{/if}}{{/if}}</p></div>
+</div>
+
+{{#if b.last_rejection_reason}}<div class="alert alert--warning"><svg class="ic"><use href="#i-alert"/></svg><div><strong>Returned by the supervisor:</strong> {{b.last_rejection_reason}}</div></div>{{/if}}
+{{#if b.void_reason}}<div class="alert alert--error"><svg class="ic"><use href="#i-x"/></svg><div><strong>Voided by {{b.voided_by_name}}:</strong> {{b.void_reason}}. The journals were reversed and the period is free to be re-processed.</div></div>{{/if}}
+{{#if (gt b.pendingAttendance 0)}}<div class="alert alert--warning"><svg class="ic"><use href="#i-clock"/></svg><div><strong>{{b.pendingAttendance}}</strong> attendance record(s) in this period are still pending validation and were not paid. <a href="/attendance/validation?from={{inputDate b.start_date}}&to={{inputDate b.end_date}}">Validate them</a>, then recompute.</div></div>{{/if}}
+
+<div class="grid grid--kpi">
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-users"/></svg></div><div><div class="kpi__label">Employees</div><div class="kpi__value">{{b.employee_count}}</div></div></div>
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-wallet"/></svg></div><div><div class="kpi__label">Gross pay</div><div class="kpi__value">{{money b.total_gross}}</div></div></div>
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-receipt"/></svg></div><div><div class="kpi__label">Deductions</div><div class="kpi__value">{{money b.total_deductions}}</div></div></div>
+  <div class="kpi kpi--success"><div class="kpi__icon"><svg class="ic"><use href="#i-check-circle"/></svg></div><div><div class="kpi__label">Net pay</div><div class="kpi__value">{{money b.total_net}}</div></div></div>
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-bank"/></svg></div><div><div class="kpi__label">Employer contributions</div><div class="kpi__value">{{money b.total_employer_contributions}}</div><div class="kpi__hint">Company expense, not deducted</div></div></div>
+</div>
+
+{{#if (or can.prepare can.review can.finalize can.release can.void)}}
+<section class="card mb">
+  <div class="card__header"><h2>Actions</h2></div>
+  <div class="card__body">
+    {{#if can.prepare}}
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <form method="POST" action="/payroll/batches/{{b.id}}/submit" data-confirm="Submit this batch to the Accounting Supervisor? It cannot be edited while under review." data-confirm-label="Submit for review"><input type="hidden" name="_csrf" value="{{csrfToken}}"><button class="btn btn--primary" type="submit"><svg class="ic"><use href="#i-send"/></svg>Submit for review</button></form>
+      <form method="POST" action="/payroll/batches/{{b.id}}/recompute" data-confirm="Recompute this batch from the latest attendance, leave, overtime and pay items?" data-confirm-label="Recompute"><input type="hidden" name="_csrf" value="{{csrfToken}}"><button class="btn btn--secondary" type="submit">Recompute</button></form>
+    </div>
+    {{/if}}
+    {{#if can.review}}
+    <div class="grid grid--2">
+      <form method="POST" action="/payroll/batches/{{b.id}}/approve" class="grid" style="gap:10px;align-content:start" novalidate>
+        <input type="hidden" name="_csrf" value="{{csrfToken}}">
+        <div class="field"><label for="remarks">Approval remarks</label><input class="input" id="remarks" name="remarks" maxlength="500"></div>
+        {{#if ownRecord}}<label class="check" style="align-items:flex-start"><input type="checkbox" name="acknowledge_own" value="1"> <span>This batch includes <strong>my own pay</strong> (net {{money ownRecord.net_pay}}). I confirm it is correct; this approval is flagged in the audit log.</span></label>{{/if}}
+        <div><button class="btn btn--primary" type="submit"><svg class="ic"><use href="#i-check"/></svg>Approve batch</button></div>
+      </form>
+      <form method="POST" action="/payroll/batches/{{b.id}}/reject" class="grid" style="gap:10px;align-content:start" novalidate>
+        <input type="hidden" name="_csrf" value="{{csrfToken}}">
+        <div class="field"><label for="reason">Reason for rejecting <span class="req">*</span></label><input class="input" id="reason" name="reason" maxlength="500"></div>
+        <div><button class="btn btn--danger" type="submit"><svg class="ic"><use href="#i-x"/></svg>Reject and return</button></div>
+      </form>
+    </div>
+    {{/if}}
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start">
+      {{#if can.finalize}}<form method="POST" action="/payroll/batches/{{b.id}}/finalize" data-confirm="Finalize this payroll? Attendance is locked, payslips are generated and the accrual is posted. It can then only be corrected by voiding." data-confirm-label="Finalize"><input type="hidden" name="_csrf" value="{{csrfToken}}"><button class="btn btn--primary" type="submit"><svg class="ic"><use href="#i-lock"/></svg>Finalize payroll</button></form>{{/if}}
+      {{#if can.release}}<form method="POST" action="/payroll/batches/{{b.id}}/release" data-confirm="Release this payroll? Employees will see their payslips and the disbursement is posted. This records the payment; it does not transfer money." data-confirm-label="Release"><input type="hidden" name="_csrf" value="{{csrfToken}}"><button class="btn btn--accent" type="submit"><svg class="ic"><use href="#i-send"/></svg>Release payroll</button></form>{{/if}}
+      {{#if can.void}}<details style="flex:1 1 280px"><summary class="btn btn--ghost" style="display:inline-flex;color:var(--danger)">Void this payroll…</summary>
+        <form method="POST" action="/payroll/batches/{{b.id}}/void" class="grid" style="gap:10px;margin-top:10px;max-width:460px" novalidate>
+          <input type="hidden" name="_csrf" value="{{csrfToken}}">
+          <div class="field"><label for="void-reason">Reason <span class="req">*</span></label><input class="input" id="void-reason" name="reason" maxlength="500" placeholder="Why must this payroll be voided?"></div>
+          <div><button class="btn btn--danger" type="submit">Void and reverse journals</button></div>
+        </form></details>{{/if}}
+    </div>
+  </div>
+</section>
+{{/if}}
+{{#if preparedByMe}}{{#if (eq b.status "for_review")}}<div class="alert alert--info"><svg class="ic"><use href="#i-info"/></svg><div>You prepared this batch, so someone else must review it.</div></div>{{/if}}{{/if}}
+
+{{#if b.warnings.length}}
+<section class="card mb">
+  <div class="card__header"><div><h2>Computation warnings ({{b.warnings.length}})</h2><p>Review before submitting</p></div></div>
+  <div class="card__body card__body--flush"><ul class="list">{{#each b.warnings}}<li class="list__item"><svg class="ic ic--sm" style="color:var(--warning);margin-top:2px"><use href="#i-alert"/></svg><div class="list__body"><strong>{{employee}}</strong><small>{{text}}</small></div></li>{{/each}}</ul></div>
+</section>
+{{/if}}
+
+<section class="card mb">
+  <div class="card__header"><h2>Employees</h2></div>
+  {{#if b.records.length}}
+  <div class="table-wrap" style="margin-top:10px"><table data-table-tools class="table table--stack">
+    <thead><tr><th>Employee</th><th class="text-right">Days</th><th class="text-right">Absent</th><th class="text-right">Gross</th><th class="text-right">Statutory</th><th class="text-right">Tax</th><th class="text-right">Other</th><th class="text-right">Net</th><th class="actions"><span class="sr-only">View</span></th></tr></thead>
+    <tbody>{{#each b.records}}<tr>
+      <td class="cell-primary"><strong>{{employee_name}}</strong><br><span class="muted">{{employee_no}} · {{position_title}}</span></td>
+      <td data-label="Days" class="text-right num">{{days_worked}}</td>
+      <td data-label="Absent" class="text-right num">{{days_absent}}</td>
+      <td data-label="Gross" class="text-right num">{{money gross_pay}}</td>
+      <td data-label="Statutory" class="text-right num">{{money statutory_employee}}</td>
+      <td data-label="Tax" class="text-right num">{{money withholding_tax}}</td>
+      <td data-label="Other" class="text-right num">{{money other_deductions}}</td>
+      <td data-label="Net" class="text-right num"><strong>{{money net_pay}}</strong></td>
+      <td class="actions"><a class="btn btn--secondary btn--sm" href="/payroll/records/{{id}}">Breakdown</a></td>
+    </tr>{{/each}}</tbody>
+  </table></div>
+  {{else}}<div class="empty empty--sm">No records in this batch.</div>{{/if}}
+</section>
+
+<div class="grid grid--2">
+  <section class="card">
+    <div class="card__header"><h2>Approval history</h2></div>
+    <div class="card__body card__body--flush">{{#if b.history.length}}<ul class="list">{{#each b.history}}<li class="list__item"><span class="dot"></span><div class="list__body"><strong>{{humanize action}}</strong><small>{{full_name}} ({{humanize actor_role}}) · {{datetime decided_at}}{{#if remarks}}<br>“{{remarks}}”{{/if}}</small></div></li>{{/each}}</ul>{{else}}<div class="empty empty--sm">Not submitted yet.</div>{{/if}}</div>
+  </section>
+  <section class="card">
+    <div class="card__header"><h2>Accounting entries</h2></div>
+    <div class="card__body card__body--flush">{{#if b.journals.length}}<ul class="list">{{#each b.journals}}<li class="list__item"><span class="dot"></span><div class="list__body"><strong>{{entry_no}} · {{humanize source_event}}</strong><small>{{date entry_date}} · {{money total_debit}}</small></div>{{badge status}}</li>{{/each}}</ul>{{else}}<div class="empty empty--sm">Journals are posted when the batch is finalized and released.</div>{{/if}}</div>
+  </section>
+</div>
+{{> app_shell_close}}

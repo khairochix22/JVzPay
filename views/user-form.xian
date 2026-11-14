@@ -1,0 +1,91 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><div class="breadcrumb"><a href="/users">User Accounts</a></div><h1>{{title}}</h1>
+  <p>{{#if (eq mode "create")}}A temporary password is generated automatically and shown once after saving.{{else}}{{u.email}}{{/if}}</p></div>
+</div>
+
+<div class="grid grid--main-side">
+  <form class="card" method="POST" action="{{#if (eq mode "create")}}/users{{else}}/users/{{u.id}}{{/if}}" novalidate>
+    <input type="hidden" name="_csrf" value="{{csrfToken}}">
+    <div class="card__body">
+      <div class="form-grid">
+        {{> field name="full_name" label="Full name" required=true value=u.full_name error=errors.full_name}}
+        {{> field name="email" label="Email (sign-in name)" type="email" required=true value=u.email error=errors.email autocomplete="off"}}
+        <div class="field">
+          <label for="role_id">Role <span class="req">*</span></label>
+          <select class="select" id="role_id" name="role_id" required {{#if errors.role_id}}aria-invalid="true"{{/if}}>
+            <option value="">Select role</option>
+            {{#each roles}}<option value="{{id}}" {{selected id ../u.role_id}}>{{name}}</option>{{/each}}
+          </select>
+          {{#if errors.role_id}}<span class="field__error">{{errors.role_id}}</span>{{/if}}
+        </div>
+        <div class="field">
+          <label for="employee_id">Linked employee</label>
+          <select class="select" id="employee_id" name="employee_id" {{#if errors.employee_id}}aria-invalid="true"{{/if}}>
+            <option value="">— Not linked —</option>
+            {{#each employees}}<option value="{{id}}" {{selected id ../u.employee_id}}>{{name}} ({{employee_no}})</option>{{/each}}
+          </select>
+          <span class="field__hint">Required for the Employee role. Staff accounts can be linked so they also get self-service.</span>
+          {{#if errors.employee_id}}<span class="field__error">{{errors.employee_id}}</span>{{/if}}
+        </div>
+        {{#if (eq mode "edit")}}
+        <div class="field">
+          <label for="status">Status <span class="req">*</span></label>
+          <select class="select" id="status" name="status" {{#if isSelf}}disabled{{/if}}>
+            <option value="active" {{selected u.status "active"}}>Active</option>
+            <option value="inactive" {{selected u.status "inactive"}}>Inactive (cannot sign in)</option>
+          </select>
+          {{#if isSelf}}<input type="hidden" name="status" value="active"><span class="field__hint">You cannot deactivate your own account.</span>{{/if}}
+          {{#if errors.status}}<span class="field__error">{{errors.status}}</span>{{/if}}
+        </div>
+        {{/if}}
+      </div>
+      <div class="form-actions">
+        <a class="btn btn--secondary" href="/users">Back</a>
+        <button type="submit" class="btn btn--primary">{{#if (eq mode "create")}}Create account{{else}}Save changes{{/if}}</button>
+      </div>
+    </div>
+  </form>
+
+  {{#if (eq mode "edit")}}
+  <div class="grid" style="align-content:start">
+    <section class="card">
+      <div class="card__header"><h2>Security</h2></div>
+      <div class="card__body">
+        <dl class="dl" style="grid-template-columns:120px 1fr;margin-bottom:16px">
+          <dt>Last sign-in</dt><dd>{{#if u.last_login_at}}{{datetime u.last_login_at}}{{else}}Never{{/if}}</dd>
+          <dt>Lock status</dt><dd>{{#if u.is_locked}}{{badge "locked"}} until {{datetime u.locked_until}}{{else}}Not locked{{/if}}</dd>
+          <dt>Password</dt><dd>{{#if u.must_change_password}}Temporary — must change{{else}}Set by user{{/if}}</dd>
+        </dl>
+        <div class="grid" style="gap:10px">
+          {{#unless isSelf}}
+          <form method="POST" action="/users/{{u.id}}/reset-link" data-confirm="Create a one-time password reset link for {{u.email}}? It expires soon and any older link stops working." data-confirm-label="Create link">
+            <input type="hidden" name="_csrf" value="{{csrfToken}}"><button class="btn btn--primary btn--block" type="submit">Create password reset link</button>
+          </form>
+          <form method="POST" action="/users/{{u.id}}/reset-password" data-confirm="Generate a new temporary password for {{u.email}}? Their current password will stop working and they will be signed out." data-confirm-label="Reset password" data-confirm-tone="danger">
+            <input type="hidden" name="_csrf" value="{{csrfToken}}"><button class="btn btn--secondary btn--block" type="submit">Reset to a temporary password</button>
+          </form>
+          {{/unless}}
+          {{#if u.is_locked}}
+          <form method="POST" action="/users/{{u.id}}/unlock"><input type="hidden" name="_csrf" value="{{csrfToken}}"><button class="btn btn--secondary btn--block" type="submit">Unlock account</button></form>
+          {{/if}}
+          {{#unless isSelf}}
+          <form method="POST" action="/users/{{u.id}}/revoke-sessions" data-confirm="Sign this user out of every device?" data-confirm-label="Sign out everywhere">
+            <input type="hidden" name="_csrf" value="{{csrfToken}}"><button class="btn btn--ghost btn--block" type="submit">Sign out of all devices</button>
+          </form>
+          {{/unless}}
+        </div>
+      </div>
+    </section>
+    <section class="card">
+      <div class="card__header"><div><h2>Active sessions</h2><p>{{sessions.length}} signed-in device(s)</p></div></div>
+      <div class="card__body card__body--flush">
+        {{#if sessions.length}}<ul class="list">{{#each sessions}}<li class="list__item"><span class="dot"></span><div class="list__body"><strong>{{default ip_address "Unknown IP"}}</strong><small>{{user_agent}} · active {{timeAgo updated_at}}</small></div></li>{{/each}}</ul>
+        {{else}}<div class="empty empty--sm">No active sessions.</div>{{/if}}
+      </div>
+    </section>
+  </div>
+  {{/if}}
+</div>
+{{> app_shell_close}}

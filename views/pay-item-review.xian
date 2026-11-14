@@ -1,0 +1,22 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header"><div><h1>Pay Item Approvals</h1><p>Approve allowances, loans and deductions before they reach payroll.</p></div></div>
+<section class="card">
+  <form class="toolbar" method="GET" action="/payroll/pay-items/review"><div class="input-group search"><svg class="ic"><use href="#i-search"/></svg><label class="sr-only" for="q">Search</label><input class="input" type="search" id="q" name="q" value="{{t.q}}" placeholder="Employee name or ID" data-autosubmit></div>
+    <select class="select" name="status" aria-label="Status" data-autosubmit>{{#each (array "pending" "approved" "rejected" "ended" "all")}}<option value="{{this}}" {{selected this ../status}}>{{humanize this}}</option>{{/each}}</select></form>
+  {{#if rows.length}}
+  <div class="table-wrap"><table class="table table--stack">
+    <thead><tr>{{sortTh meta "employee" "Employee"}}<th>Item</th><th class="text-right">Per period</th><th class="text-right">Total</th>{{sortTh meta "from" "Effective"}}<th>Decision</th></tr></thead>
+    <tbody>{{#each rows}}<tr>
+      <td class="cell-primary"><strong>{{name}}</strong><br><span class="muted">{{employee_no}} · by {{submitted_by_name}}</span></td>
+      <td data-label="Item"><div>{{component_name}} <span class="muted">({{component_type}})</span>{{#if description}}<br><span class="muted">{{description}}</span>{{/if}}</div></td>
+      <td data-label="Per period" class="text-right num">{{money amount}}</td>
+      <td data-label="Total" class="text-right num">{{#if remaining_balance}}{{money remaining_balance}}{{else}}—{{/if}}</td>
+      <td data-label="Effective" class="nowrap">{{date effective_from}}</td>
+      <td data-label="Decision" style="min-width:260px">{{#if (eq status "pending")}}{{> decide_inline action=(concat "/payroll/pay-items/" id "/decision") csrf=../csrfToken own=own}}{{else}}<div>{{badge status}} {{decided_by_name}}{{#if decision_remarks}}<br><span class="muted" style="font-size:12px">“{{decision_remarks}}”</span>{{/if}}</div>{{/if}}</td>
+    </tr>{{/each}}</tbody>
+  </table></div>
+  {{> pager meta=meta}}
+  {{else}}<div class="empty"><svg class="ic"><use href="#i-inbox"/></svg><strong>Nothing waiting</strong>You're all caught up.</div>{{/if}}
+</section>
+{{> app_shell_close}}

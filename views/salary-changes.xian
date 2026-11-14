@@ -1,0 +1,23 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header"><div><h1>Salary Change Verification</h1><p>Payroll cannot be submitted for an employee with an unverified salary change. Rejecting restores the previous rate.</p></div></div>
+<section class="card">
+  <form class="toolbar" method="GET" action="/payroll/salary-changes"><div class="input-group search"><svg class="ic"><use href="#i-search"/></svg><label class="sr-only" for="q">Search</label><input class="input" type="search" id="q" name="q" value="{{t.q}}" placeholder="Employee name or ID" data-autosubmit></div>
+    <select class="select" name="status" aria-label="Status" data-autosubmit>{{#each (array "pending" "verified" "rejected" "all")}}<option value="{{this}}" {{selected this ../status}}>{{humanize this}}</option>{{/each}}</select></form>
+  {{#if rows.length}}
+  <div class="table-wrap"><table class="table table--stack">
+    <thead><tr>{{sortTh meta "employee" "Employee"}}<th class="text-right">Previous</th><th class="text-right">New</th><th>Effective</th><th>Reason</th>{{sortTh meta "recorded" "Recorded"}}<th>Decision</th></tr></thead>
+    <tbody>{{#each rows}}<tr>
+      <td class="cell-primary"><strong>{{name}}</strong><br><span class="muted">{{employee_no}} · {{humanize rate_basis}}</span></td>
+      <td data-label="Previous" class="text-right num">{{#if previous_amount}}{{money previous_amount}}{{else}}—{{/if}}</td>
+      <td data-label="New" class="text-right num"><strong>{{money new_amount}}</strong></td>
+      <td data-label="Effective" class="nowrap">{{date effective_date}}</td>
+      <td data-label="Reason">{{default reason "—"}}</td>
+      <td data-label="Recorded"><div>{{recorded_by_name}}<br><span class="muted" style="font-size:12px">{{timeAgo created_at}}</span></div></td>
+      <td data-label="Decision" style="min-width:260px">{{#if (eq verification_status "pending")}}{{> decide_inline action=(concat "/payroll/salary-changes/" id "/decision") csrf=../csrfToken own=own approveLabel="Verify"}}{{else}}<div>{{badge verification_status}} {{verified_by_name}}{{#if verification_remarks}}<br><span class="muted" style="font-size:12px">“{{verification_remarks}}”</span>{{/if}}</div>{{/if}}</td>
+    </tr>{{/each}}</tbody>
+  </table></div>
+  {{> pager meta=meta}}
+  {{else}}<div class="empty"><svg class="ic"><use href="#i-check-circle"/></svg><strong>Nothing to verify</strong>Salary changes recorded by the administrator appear here.</div>{{/if}}
+</section>
+{{> app_shell_close}}

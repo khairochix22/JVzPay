@@ -1,0 +1,38 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header"><div><h1>Chart of Accounts</h1><p>Balances are computed from posted journal entries. System accounts are used by automatic payroll postings.</p></div></div>
+<div class="grid grid--main-side">
+  <section class="card" style="align-self:start"><div class="table-wrap"><table data-table-tools class="table table--stack">
+    <thead><tr><th>Account</th><th>Type</th><th class="text-right">Balance</th><th>Status</th>{{#if canManage}}<th class="actions"><span class="sr-only">Actions</span></th>{{/if}}</tr></thead>
+    <tbody>{{#each accounts}}<tr>
+      <td class="cell-primary"><strong>{{code}}</strong> {{name}}{{#if parent_code}}<br><span class="muted">under {{parent_code}}</span>{{/if}}{{#if is_system}} <span class="badge badge--neutral">System</span>{{/if}}</td>
+      <td data-label="Type">{{humanize account_type}}</td>
+      <td data-label="Balance" class="text-right num">{{money balance}}</td>
+      <td data-label="Status">{{#if is_active}}{{badge "active"}}{{else}}{{badge "inactive"}}{{/if}}</td>
+      {{#if ../canManage}}<td class="actions">
+        <details><summary class="btn btn--ghost btn--sm" style="display:inline-flex">Edit</summary>
+          <form method="POST" action="/accounting/accounts/{{id}}" class="grid" style="gap:8px;margin-top:8px;text-align:left;min-width:220px"><input type="hidden" name="_csrf" value="{{../csrfToken}}">
+            <input class="input" name="code" value="{{code}}" aria-label="Code" required><input class="input" name="name" value="{{name}}" aria-label="Name" required>
+            <select class="select" name="account_type" aria-label="Type">{{#each ../types}}<option value="{{this}}" {{selected this ../account_type}}>{{humanize this}}</option>{{/each}}</select>
+            <label class="check"><input type="checkbox" name="is_cash" value="1" {{#if is_cash}}checked{{/if}}> Cash or bank account</label>
+            <input class="input" name="description" value="{{description}}" placeholder="Description" aria-label="Description">
+            <button class="btn btn--primary btn--sm" type="submit">Save</button></form></details>
+        {{#unless is_system}}<form method="POST" action="/accounting/accounts/{{id}}/toggle" style="display:inline"><input type="hidden" name="_csrf" value="{{../csrfToken}}"><button class="btn btn--ghost btn--sm" type="submit">{{#if is_active}}Deactivate{{else}}Activate{{/if}}</button></form>{{/unless}}
+      </td>{{/if}}
+    </tr>{{/each}}</tbody>
+  </table></div></section>
+  {{#if canManage}}
+  <section class="card" style="align-self:start"><div class="card__header"><h2>Add account</h2></div>
+    <form class="card__body" method="POST" action="/accounting/accounts" novalidate><input type="hidden" name="_csrf" value="{{csrfToken}}">
+      <div class="grid" style="gap:14px">
+        {{> field name="code" label="Code" required=true placeholder="e.g. 5140"}}
+        {{> field name="name" label="Name" required=true placeholder="e.g. Repairs Expense"}}
+        <div class="field"><label for="account_type">Type <span class="req">*</span></label><select class="select" id="account_type" name="account_type">{{#each types}}<option value="{{this}}">{{humanize this}}</option>{{/each}}</select></div>
+        <div class="field"><label for="parent_id">Parent account</label><select class="select" id="parent_id" name="parent_id"><option value="">None</option>{{#each accounts}}<option value="{{id}}">{{code}} {{name}}</option>{{/each}}</select></div>
+        <label class="check"><input type="checkbox" name="is_cash" value="1"> Cash or bank account</label>
+        {{> field name="description" label="Description"}}
+        <button class="btn btn--primary" type="submit"><svg class="ic"><use href="#i-plus"/></svg>Add account</button>
+      </div></form></section>
+  {{/if}}
+</div>
+{{> app_shell_close}}

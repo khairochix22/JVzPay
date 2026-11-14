@@ -1,0 +1,38 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><h1>Bank Enrollments</h1><p>Verify employees' payroll bank accounts. Approved details become the employee's single active payroll account.</p></div>
+</div>
+<section class="card">
+  <form class="toolbar" method="GET" action="/bank-enrollments" role="search">
+    <div class="input-group search"><svg class="ic"><use href="#i-search"/></svg><label class="sr-only" for="q">Search</label>
+      <input class="input" type="search" id="q" name="q" value="{{t.q}}" placeholder="Employee name, ID or request no." data-autosubmit></div>
+    <label class="sr-only" for="f-status">Status</label>
+    <select class="select" id="f-status" name="status" data-autosubmit>
+      {{#each (array "pending" "approved" "rejected" "cancelled" "all")}}<option value="{{this}}" {{selected this ../status}}>{{humanize this}}</option>{{/each}}
+    </select>
+    <input type="hidden" name="sort" value="{{t.sort}}"><input type="hidden" name="dir" value="{{t.dir}}">
+  </form>
+  {{#if rows.length}}
+  <div class="table-wrap"><table class="table table--stack">
+    <thead><tr>{{sortTh meta "employee" "Employee"}}<th>Request</th><th>Bank</th><th>Type</th>{{sortTh meta "submitted" "Submitted"}}{{sortTh meta "status" "Status"}}<th class="actions"><span class="sr-only">Actions</span></th></tr></thead>
+    <tbody>
+      {{#each rows}}
+      <tr>
+        <td class="cell-primary"><div class="person"><span class="avatar">{{initials name}}</span><div><strong>{{name}}</strong><span>{{employee_no}} · {{department}}</span></div></div></td>
+        <td data-label="Request"><div>{{request_no}}{{#if attachment_id}}<br><span class="muted">with document</span>{{/if}}</div></td>
+        <td data-label="Bank"><div>{{bank_name}}<br><span class="muted">•••• {{account_last4}} · {{humanize account_type}}</span></div></td>
+        <td data-label="Type">{{humanize request_type}}</td>
+        <td data-label="Submitted" class="nowrap">{{timeAgo submitted_at}}</td>
+        <td data-label="Status">{{badge status}}</td>
+        <td class="actions"><a class="btn {{#if (eq status "pending")}}btn--primary{{else}}btn--secondary{{/if}} btn--sm" href="/bank-enrollments/{{id}}">{{#if (eq status "pending")}}Review{{else}}View{{/if}}</a></td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table></div>
+  {{> pager meta=meta}}
+  {{else}}
+  <div class="empty"><svg class="ic"><use href="#i-bank"/></svg>{{#if (eq status "pending")}}<strong>No pending enrollments</strong>You're all caught up.{{else}}<strong>No requests match</strong>Try another status or search.{{/if}}</div>
+  {{/if}}
+</section>
+{{> app_shell_close}}

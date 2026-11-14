@@ -1,0 +1,43 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><h1>Enrollment Verification</h1><p>Government numbers, dependents and benefit enrollments submitted by employees. Verified government numbers replace the ones payroll uses. You cannot verify your own requests.</p></div>
+</div>
+
+{{#*inline "decide"}}
+  {{#if (eq status "pending")}}{{#if own}}<span class="muted">Your own request</span>{{else}}
+  <form method="POST" action="/payroll/enrollments/{{kind}}/{{id}}/decision" style="display:inline"><input type="hidden" name="_csrf" value="{{csrf}}"><button class="btn btn--primary btn--sm" name="action" value="approve" type="submit">Verify</button></form>
+  <form method="POST" action="/payroll/enrollments/{{kind}}/{{id}}/decision" style="display:inline-flex;gap:6px"><input type="hidden" name="_csrf" value="{{csrf}}"><input class="input" name="remarks" placeholder="Reason" aria-label="Reason for rejecting" style="min-height:36px;width:130px"><button class="btn btn--secondary btn--sm" name="action" value="reject" type="submit">Reject</button></form>
+  {{/if}}{{/if}}
+{{/inline}}
+
+{{#if statutory}}
+<section class="card mb">
+  <div class="card__header"><div><h2>Government enrollment</h2><p>SSS, PhilHealth, Pag-IBIG, TIN (masked)</p></div></div>
+  <div class="card__body card__body--flush">
+    {{#if statutory.length}}<div class="table-wrap"><table class="table table--stack"><thead><tr><th>Employee</th><th>Numbers</th><th>Proof</th><th>Status</th><th class="actions"><span class="sr-only">Decision</span></th></tr></thead><tbody>
+    {{#each statutory}}<tr><td class="cell-primary"><strong>{{employee_name}}</strong><br><span class="muted">{{employee_no}} · {{department}} · {{request_no}}</span></td><td data-label="Numbers">{{fields}}</td><td data-label="Proof">{{#if attachment_id}}<a href="/documents/{{attachment_id}}">View</a>{{else}}—{{/if}}</td><td data-label="Status">{{badge status}}</td><td class="actions">{{> decide kind="statutory" id=id status=status own=own csrf=../csrfToken}}</td></tr>{{/each}}
+    </tbody></table></div>{{else}}<div class="empty empty--sm"><svg class="ic"><use href="#i-shield"/></svg><strong>Nothing submitted</strong></div>{{/if}}
+  </div>
+</section>
+{{/if}}
+
+{{#if dependents}}
+<div class="grid grid--2">
+  <section class="card">
+    <div class="card__header"><div><h2>Dependents</h2></div></div>
+    <div class="card__body card__body--flush">
+      {{#if dependents.length}}<ul class="list">{{#each dependents}}<li class="list__item"><div class="list__body"><strong>{{full_name}}</strong><small>{{humanize relationship}} of {{employee_name}} · born {{date birth_date}} · {{request_no}}{{#if attachment_id}} · <a href="/documents/{{attachment_id}}">proof</a>{{/if}}</small></div>{{badge status}} {{> decide kind="dependent" id=id status=status own=own csrf=../csrfToken}}</li>{{/each}}</ul>
+      {{else}}<div class="empty empty--sm"><svg class="ic"><use href="#i-users"/></svg><strong>Nothing submitted</strong></div>{{/if}}
+    </div>
+  </section>
+  <section class="card">
+    <div class="card__header"><div><h2>Benefit enrollments</h2></div></div>
+    <div class="card__body card__body--flush">
+      {{#if benefits.length}}<ul class="list">{{#each benefits}}<li class="list__item"><div class="list__body"><strong>{{plan_name}}</strong><small>{{humanize benefit_type}} · {{employee_name}}{{#if coverage_amount}} · {{money coverage_amount}} coverage{{/if}} · {{request_no}}</small>{{#if covered.length}}<small>Covers: {{#each covered}}{{full_name}} ({{humanize relationship}}){{#unless @last}}, {{/unless}}{{/each}}</small>{{/if}}{{#if beneficiaries.length}}<small>Beneficiaries: {{#each beneficiaries}}{{full_name}} ({{humanize relationship}}, {{share_percent}}%){{#unless @last}}, {{/unless}}{{/each}}</small>{{/if}}</div>{{badge status}} {{> decide kind="benefit" id=id status=status own=own csrf=../csrfToken}}</li>{{/each}}</ul>
+      {{else}}<div class="empty empty--sm"><svg class="ic"><use href="#i-shield"/></svg><strong>Nothing submitted</strong></div>{{/if}}
+    </div>
+  </section>
+</div>
+{{/if}}
+{{> app_shell_close}}

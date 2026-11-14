@@ -1,0 +1,38 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><div class="breadcrumb"><a href="/reports">Reports</a> / {{def.group}}</div><h1>{{def.title}}</h1>{{#if data.subtitle}}<p>{{data.subtitle}}</p>{{/if}}</div>
+  <div class="page-actions no-print">
+    <a class="btn btn--secondary" href="/reports/{{def.key}}/export?format=pdf&{{qs}}"><svg class="ic"><use href="#i-download"/></svg>PDF</a>
+    <a class="btn btn--secondary" href="/reports/{{def.key}}/export?format=xlsx&{{qs}}"><svg class="ic"><use href="#i-download"/></svg>Excel</a>
+    <button type="button" class="btn btn--secondary" data-print><svg class="ic"><use href="#i-file-text"/></svg>Print</button>
+  </div>
+</div>
+{{#if def.filters.length}}
+<form class="card mb no-print" method="GET" action="/reports/{{def.key}}" style="padding:14px 18px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+  {{#if has.from}}<div class="field"><label for="from">From</label><input class="input" type="date" id="from" name="from" value="{{f.from}}"></div>{{/if}}
+  {{#if has.to}}<div class="field"><label for="to">To</label><input class="input" type="date" id="to" name="to" value="{{f.to}}"></div>{{/if}}
+  {{#if has.asOf}}<div class="field"><label for="asOf">As of</label><input class="input" type="date" id="asOf" name="asOf" value="{{f.asOf}}"></div>{{/if}}
+  {{#if has.year}}<div class="field"><label for="year">Year</label><input class="input" type="number" id="year" name="year" value="{{f.year}}" min="2000" max="2100" style="width:110px"></div>{{/if}}
+  {{#if has.period}}<div class="field"><label for="period">Payroll period</label><select class="select" id="period" name="period"><option value="">Select</option>{{#each periods}}<option value="{{id}}" {{selected id ../f.period}}>{{label}}</option>{{/each}}</select></div>{{/if}}
+  {{#if has.department}}<div class="field"><label for="department">Department</label><select class="select" id="department" name="department"><option value="">All</option>{{#each departments}}<option value="{{id}}" {{selected id ../f.department}}>{{name}}</option>{{/each}}</select></div>{{/if}}
+  {{#if has.employee}}<div class="field"><label for="employee">Employee</label><select class="select" id="employee" name="employee"><option value="">Select</option>{{#each employees}}<option value="{{id}}" {{selected id ../f.employee}}>{{label}}</option>{{/each}}</select></div>{{/if}}
+  {{#if has.account}}<div class="field"><label for="account">Account</label><select class="select" id="account" name="account"><option value="">All accounts</option>{{#each accounts}}<option value="{{id}}" {{selected id ../f.account}}>{{code}} {{name}}</option>{{/each}}</select></div>{{/if}}
+  {{#if has.category}}<div class="field"><label for="category">Category</label><select class="select" id="category" name="category"><option value="">All</option>{{#each categories}}<option value="{{id}}" {{selected id ../f.category}}>{{name}}</option>{{/each}}</select></div>{{/if}}
+  {{#if has.status}}<div class="field"><label for="status">Status</label><select class="select" id="status" name="status"><option value="">All</option>{{#each statuses}}<option value="{{this}}" {{selected this ../f.status}}>{{humanize this}}</option>{{/each}}</select></div>{{/if}}
+  <button class="btn btn--primary" type="submit">Generate</button>
+</form>
+{{/if}}
+{{#each data.notes}}<div class="alert alert--info"><svg class="ic"><use href="#i-info"/></svg><div>{{this}}</div></div>{{/each}}
+<section class="card">
+  {{#if rows.length}}
+  <div class="table-wrap"><table class="table report-table">
+    <thead><tr>{{#each columns}}<th {{#if right}}class="text-right"{{/if}}>{{label}}</th>{{/each}}</tr></thead>
+    <tbody>{{#each rows}}
+      {{#if heading}}<tr class="report-heading"><th colspan="{{../colspan}}">{{heading}}</th></tr>
+      {{else}}<tr class="{{#if kind}}report-{{kind}}{{/if}}">{{#each cells}}<td class="{{#if right}}text-right num{{/if}}">{{v}}</td>{{/each}}</tr>{{/if}}
+    {{/each}}</tbody>
+  </table></div>
+  {{else}}<div class="empty"><svg class="ic"><use href="#i-file-text"/></svg><strong>No data</strong>Nothing matches the selected filters.</div>{{/if}}
+</section>
+{{> app_shell_close}}

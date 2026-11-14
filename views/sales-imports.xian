@@ -1,0 +1,16 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><h1>CRM Sales</h1><p>Completed sales sent by the CRM application and the journal entry each became. CRM owns the orders; JVzPay records only the money. Cancellations and refunds are posted as reversals.</p></div>
+</div>
+<div class="grid grid--kpi">
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-trending-up"/></svg></div><div><div class="kpi__label">Net sales this month</div><div class="kpi__value">{{money totals.net}}</div><div class="kpi__hint">{{totals.n}} CRM transaction(s)</div></div></div>
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-inbox"/></svg></div><div><div class="kpi__label">Sold on account</div><div class="kpi__value">{{money totals.on_account}}</div><div class="kpi__hint">Became receivables</div></div></div>
+</div>
+<section class="card">
+  {{#if rows.length}}<div class="table-wrap"><table class="table table--stack" data-table-tools><thead><tr><th>Transaction</th><th>Date</th><th>Payment</th><th class="text-right">Total</th><th class="text-right">Refunded</th><th>Journal</th><th>Status</th></tr></thead><tbody>
+  {{#each rows}}<tr><td class="cell-primary"><strong>{{transaction_id}}</strong>{{#if order_id}}<br><span class="muted">Order {{order_id}}</span>{{/if}}</td><td data-label="Date" class="nowrap">{{date transaction_date}}</td><td data-label="Payment">{{humanize payment_status}}</td><td data-label="Total" class="text-right num">{{money total_amount}}</td><td data-label="Refunded" class="text-right num">{{money refunded_amount}}</td><td data-label="Journal"><a href="/accounting/journals/{{journal_entry_id}}">{{entry_no}}</a></td><td data-label="Status">{{badge status}}</td></tr>{{/each}}
+  </tbody></table></div>
+  {{else}}<div class="empty"><svg class="ic"><use href="#i-trending-up"/></svg><strong>No CRM sales yet</strong>They arrive once the CRM application is connected (System → Integration).</div>{{/if}}
+</section>
+{{> app_shell_close}}

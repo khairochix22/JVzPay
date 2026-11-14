@@ -1,0 +1,33 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><h1>Attendance Corrections</h1><p>Employee requests to correct their time records. Approved corrections update attendance; the original values stay in the request.</p></div>
+</div>
+<section class="card">
+  <form class="toolbar" method="GET" action="/attendance/corrections" role="search">
+    <div class="input-group search"><svg class="ic"><use href="#i-search"/></svg><label class="sr-only" for="q">Search</label>
+      <input class="input" type="search" id="q" name="q" value="{{t.q}}" placeholder="Employee or request no." data-autosubmit></div>
+    <select class="select" name="status" aria-label="Status" data-autosubmit>{{#each (array "pending" "approved" "rejected" "cancelled" "all")}}<option value="{{this}}" {{selected this ../status}}>{{humanize this}}</option>{{/each}}</select>
+  </form>
+  {{#if rows.length}}
+  <div class="table-wrap"><table class="table table--stack">
+    <thead><tr>{{sortTh meta "employee" "Employee"}}<th>Request</th>{{sortTh meta "date" "Day"}}<th>Original</th><th>Requested</th>{{sortTh meta "submitted" "Submitted"}}<th>Status</th><th class="actions"><span class="sr-only">Actions</span></th></tr></thead>
+    <tbody>
+      {{#each rows}}
+      <tr>
+        <td class="cell-primary"><strong>{{name}}</strong><br><span class="muted">{{employee_no}} · {{department}}</span></td>
+        <td data-label="Request">{{request_no}}</td>
+        <td data-label="Day" class="nowrap">{{date work_date}}</td>
+        <td data-label="Original"><div>{{#if original_status}}{{humanize original_status}}<br><span class="muted">{{time original_time_in}}–{{time original_time_out}}</span>{{else}}<span class="muted">No record</span>{{/if}}</div></td>
+        <td data-label="Requested"><div>{{humanize requested_status}}{{#if requested_time_in}}<br><span class="muted">{{time requested_time_in}}–{{time requested_time_out}}</span>{{/if}}</div></td>
+        <td data-label="Submitted" class="nowrap">{{timeAgo submitted_at}}</td>
+        <td data-label="Status">{{badge status}}{{#if (eq status "pending")}}{{> sup_step}}{{/if}}</td>
+        <td class="actions"><a class="btn {{#if (eq status "pending")}}btn--primary{{else}}btn--secondary{{/if}} btn--sm" href="/attendance/corrections/{{id}}">{{#if (eq status "pending")}}Review{{else}}View{{/if}}</a></td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table></div>
+  {{> pager meta=meta}}
+  {{else}}<div class="empty"><svg class="ic"><use href="#i-clock"/></svg>{{#if (eq status "pending")}}<strong>No pending corrections</strong>You're all caught up.{{else}}<strong>No requests match</strong>Try another status or search.{{/if}}</div>{{/if}}
+</section>
+{{> app_shell_close}}

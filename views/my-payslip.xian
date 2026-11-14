@@ -1,0 +1,73 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><div class="breadcrumb"><a href="{{default base "/my/payslips"}}">{{default baseLabel "My Payslips"}}</a> / {{p.payslip_no}}</div><h1>{{p.period_label}}</h1><p>{{date p.start_date}} – {{date p.end_date}} · Pay date {{date p.pay_date}} &nbsp; {{badge p.payslip_status}}</p></div>
+  <div class="page-actions no-print"><button type="button" class="btn btn--secondary" data-print><svg class="ic"><use href="#i-file-text"/></svg>Print</button><a class="btn btn--primary" href="{{default base "/my/payslips"}}/{{p.id}}/pdf"><svg class="ic"><use href="#i-download"/></svg>Download PDF</a></div>
+</div>
+
+<div class="grid grid--2 mb">
+  <section class="card">
+    <div class="card__header"><h2>Earnings</h2></div>
+    <div class="card__body">
+      <table class="viz-table">
+        <tbody>
+          {{#if p.earnings.length}}
+            {{#each p.earnings}}<tr><td>{{description}}</td><td class="v">{{money amount}}</td></tr>{{/each}}
+          {{else}}
+            <tr><td>Basic pay</td><td class="v">{{money p.basic_pay}}</td></tr>
+            <tr><td>Overtime pay</td><td class="v">{{money p.overtime_pay}}</td></tr>
+            <tr><td>Holiday pay</td><td class="v">{{money p.holiday_pay}}</td></tr>
+            <tr><td>Night differential</td><td class="v">{{money p.night_diff_pay}}</td></tr>
+            <tr><td>Allowances</td><td class="v">{{money p.allowances}}</td></tr>
+            <tr><td>Other earnings</td><td class="v">{{money p.other_earnings}}</td></tr>
+          {{/if}}
+          <tr><th>Gross pay</th><th class="v">{{money p.gross_pay}}</th></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+  <section class="card">
+    <div class="card__header"><h2>Deductions</h2></div>
+    <div class="card__body">
+      <table class="viz-table">
+        <tbody>
+          {{#each p.contributions}}<tr><td>{{#if (eq agency "PHILHEALTH")}}PhilHealth{{else if (eq agency "PAGIBIG")}}Pag-IBIG{{else}}SSS{{/if}} (employee share)</td><td class="v">{{money employee_share}}</td></tr>{{/each}}
+          {{#each p.deductions}}{{#unless (and (eq category "statutory") ../p.contributions.length)}}<tr><td>{{description}}</td><td class="v">{{money amount}}</td></tr>{{/unless}}{{/each}}
+          {{#unless p.deductions.length}}
+            {{#unless p.contributions.length}}<tr><td>Statutory contributions</td><td class="v">{{money p.statutory_employee}}</td></tr>{{/unless}}
+            <tr><td>Withholding tax</td><td class="v">{{money p.withholding_tax}}</td></tr>
+            <tr><td>Other deductions</td><td class="v">{{money p.other_deductions}}</td></tr>
+          {{/unless}}
+          <tr><th>Total deductions</th><th class="v">{{money p.total_deductions}}</th></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<section class="welcome" style="margin-bottom:22px">
+  <div><p>Net pay (take-home)</p><h1 style="font-size:32px">{{money p.net_pay}}</h1></div>
+  <div class="welcome__meta"><strong>{{p.employee_name}}</strong>{{p.employee_no}} · {{p.position_title}}</div>
+</section>
+
+{{#if p.contributions.length}}
+<section class="card">
+  <div class="card__header"><div><h2>Government contributions</h2><p>Your share is deducted above; the employer share is paid by the company on top of your salary.</p></div></div>
+  <div class="card__body card__body--flush"><div class="table-wrap"><table class="table table--stack">
+    <thead><tr><th>Agency</th><th class="text-right">Basis</th><th class="text-right">Your share</th><th class="text-right">Employer share</th></tr></thead>
+    <tbody>{{#each p.contributions}}<tr>
+      <td class="cell-primary"><strong>{{#if (eq agency "PHILHEALTH")}}PhilHealth{{else if (eq agency "PAGIBIG")}}Pag-IBIG{{else}}SSS{{/if}}</strong></td>
+      <td data-label="Basis" class="text-right num">{{money base_amount}}</td>
+      <td data-label="Your share" class="text-right num">{{money employee_share}}</td>
+      <td data-label="Employer share" class="text-right num">{{money employer_share}}{{#if (ne ec_share "0.00")}} <span class="muted">+ EC {{money ec_share}}</span>{{/if}}</td>
+    </tr>{{/each}}</tbody>
+  </table></div></div>
+</section>
+{{/if}}
+{{#if (ne p.retirement_company_share "0.00")}}
+<section class="card" style="margin-top:16px">
+  <div class="card__header"><div><h2>Retirement fund</h2><p>Your contribution is deducted above; the company adds the same amount to your fund.</p></div></div>
+  <div class="card__body"><p>Company share this payday: <strong>{{money p.retirement_company_share}}</strong> · <a href="/my/retirement">See your fund</a></p></div>
+</section>
+{{/if}}
+{{> app_shell_close}}

@@ -1,0 +1,74 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><h1>Retirement Fund</h1><p>Choose 10%, 15% or 20% of your basic monthly salary. It is deducted every payday and shown on your payslip, and the company adds the same amount.</p></div>
+</div>
+
+{{#unless active}}<div class="alert alert--warning mb" role="alert"><svg class="ic"><use href="#i-alert"/></svg><div>Enrollment is for active employees. Your HR record says <strong>{{humanize employmentStatus}}</strong>. Ask HR to correct it if this is wrong. You can still withdraw what is already in your fund.</div></div>{{/unless}}
+<div class="grid grid--kpi">
+  <div class="kpi {{#if enrollment}}kpi--success{{/if}}"><div class="kpi__icon"><svg class="ic"><use href="#i-shield"/></svg></div><div><div class="kpi__label">Your contribution</div><div class="kpi__value">{{#if enrollment}}{{enrollment.rate_percent}}%{{else}}Not enrolled{{/if}}</div><div class="kpi__hint">{{#if enrollment}}Since {{date enrollment.effective_from}}{{else}}Enroll below{{/if}}</div></div></div>
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-wallet"/></svg></div><div><div class="kpi__label">Fund balance</div><div class="kpi__value">{{money fund.total}}</div><div class="kpi__hint">Yours {{money fund.employee}} · company {{money fund.company}}</div></div></div>
+  <div class="kpi {{#if fund.vested}}kpi--success{{/if}}"><div class="kpi__icon"><svg class="ic"><use href="#i-calendar"/></svg></div><div><div class="kpi__label">Years of service</div><div class="kpi__value">{{fund.tenure}}</div><div class="kpi__hint">{{#if fund.vested}}Vested: the whole fund is yours{{else}}{{fund.yearsLeft}} more year(s) until {{fund.vestingYears}}{{/if}}</div></div></div>
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-check-circle"/></svg></div><div><div class="kpi__label">Withdrawable now</div><div class="kpi__value">{{money fund.payable}}</div><div class="kpi__hint">{{#if fund.vested}}Your share and the company share{{else}}Your share only; {{money fund.forfeited}} company share would be forfeited{{/if}}</div></div></div>
+</div>
+
+<section class="card mb">
+  <div class="card__header"><div><h2>Vesting</h2><p class="muted">After {{fund.vestingYears}} years of service you can withdraw everything, including the company share. Before that — if you resign, are terminated or withdraw voluntarily — only your own contributions are paid and the company share is forfeited.</p></div></div>
+  <div class="card__body"><div class="meter {{#unless fund.vested}}meter--warning{{/unless}}" role="img" aria-label="{{fund.vestPct}}% of the vesting period"><span style="width:{{fund.vestPct}}%"></span></div><small class="muted">{{fund.tenure}} of {{fund.vestingYears}} years ({{fund.vestPct}}%)</small></div>
+</section>
+
+<div class="grid grid--2 mb">
+  <section class="card">
+    <div class="card__header"><div><h2>{{#if enrollment}}Change your contribution{{else}}Enroll{{/if}}</h2></div></div>
+    {{#unless active}}<div class="card__body"><p class="muted">Not available: your HR record is not active.</p></div>{{else}}
+    <form class="card__body" method="POST" action="/my/retirement/enroll">
+      <input type="hidden" name="_csrf" value="{{csrfToken}}">
+      <fieldset class="field" style="border:0;padding:0;margin:0"><legend>Percentage of basic monthly salary</legend>
+        <div class="page-actions" style="justify-content:flex-start">{{#each rates}}<label class="btn btn--secondary"><input type="radio" name="rate_percent" value="{{this}}" {{checked this ../enrollment.rate_percent}} required> {{this}}%</label>{{/each}}</div>
+      </fieldset>
+      <p class="muted">The new percentage applies from the next payroll computed.</p>
+      <div class="form-actions"><button class="btn btn--primary" type="submit">{{#if enrollment}}Change{{else}}Enroll{{/if}}</button></div>
+    </form>{{/unless}}
+  </section>
+  <section class="card">
+    <div class="card__header"><div><h2>Withdraw</h2></div></div>
+    {{#if pendingWithdrawal}}<div class="card__body"><p class="muted">A withdrawal is already being processed. See below.</p></div>
+    {{else if fund.count}}
+    <form class="card__body" method="POST" action="/my/retirement/withdrawals">
+      <input type="hidden" name="_csrf" value="{{csrfToken}}">
+      <div class="field"><label for="reason">Reason</label><select class="select" id="reason" name="reason" required>
+        <option value="voluntary">Voluntary withdrawal</option>{{#if fund.vested}}<option value="retirement">Retirement ({{fund.vestingYears}} years of service)</option>{{/if}}</select></div>
+      <div class="field"><label for="remarks">Remarks</label><input class="input" id="remarks" name="remarks" maxlength="500"></div>
+      <p>You will receive <strong>{{money fund.payable}}</strong>.{{#unless fund.vested}} The company share of <strong>{{money fund.forfeited}}</strong> is forfeited.{{/unless}} The withdrawal empties the fund and ends your enrollment; you can enroll again afterwards.</p>
+      <label class="nowrap"><input type="checkbox" name="confirm" value="1" required> I understand</label>
+      <div class="form-actions"><button class="btn btn--danger" type="submit">Request withdrawal</button></div>
+    </form>
+    {{else}}<div class="card__body"><p class="muted">Nothing to withdraw yet: contributions count once their payroll is finalized.</p></div>
+    {{/if}}
+  </section>
+</div>
+
+{{#if withdrawals.length}}
+<section class="card mb">
+  <div class="card__header"><div><h2>Withdrawals</h2></div></div>
+  <div class="card__body card__body--flush"><div class="table-wrap"><table class="table table--stack"><thead><tr><th>Request</th><th class="text-right">Payable</th><th class="text-right">Forfeited</th><th>Status</th><th class="actions"><span class="sr-only">Actions</span></th></tr></thead><tbody>
+  {{#each withdrawals}}<tr><td class="cell-primary"><strong>{{withdrawal_no}}</strong><br><span class="muted">{{reasonLabel}} · {{tenure_years}} yrs · {{date requested_at}}</span></td>
+    <td data-label="Payable" class="text-right num">{{money payable_amount}}</td><td data-label="Forfeited" class="text-right num">{{money forfeited_amount}}</td>
+    <td data-label="Status">{{badge status}}{{#if decision_remarks}}<br><span class="muted">“{{decision_remarks}}”</span>{{/if}}{{#if payment_reference}}<br><span class="muted">Paid: {{payment_reference}}</span>{{/if}}</td>
+    <td class="actions">{{#if (eq status "pending")}}<form method="POST" action="/my/retirement/withdrawals/{{id}}/cancel"><input type="hidden" name="_csrf" value="{{../csrfToken}}"><button class="btn btn--secondary btn--sm" type="submit">Cancel</button></form>{{/if}}</td></tr>{{/each}}
+  </tbody></table></div></div>
+</section>
+{{/if}}
+
+<section class="card">
+  <div class="card__header"><div><h2>Contributions</h2><p class="muted">One line per payday. Contributions from payroll not yet finalized are not in the balance.</p></div></div>
+  <div class="card__body card__body--flush">
+    {{#if contributions.length}}<div class="table-wrap"><table class="table table--stack"><thead><tr><th>Payday</th><th class="text-right">Rate</th><th class="text-right">You</th><th class="text-right">Company</th><th>Status</th></tr></thead><tbody>
+    {{#each contributions}}<tr><td class="cell-primary"><strong>{{period_label}}</strong><br><span class="muted">{{date contribution_date}}</span></td>
+      <td data-label="Rate" class="text-right num">{{rate_percent}}%</td><td data-label="You" class="text-right num">{{money employee_share}}</td><td data-label="Company" class="text-right num">{{money company_share}}</td>
+      <td data-label="Status">{{#if withdrawal_id}}<span class="badge badge--neutral">Withdrawn</span>{{else}}{{badge payroll_status}}{{/if}}</td></tr>{{/each}}
+    </tbody></table></div>
+    {{else}}<div class="empty empty--sm"><svg class="ic"><use href="#i-wallet"/></svg><strong>No contributions yet</strong><span class="muted">They appear after your first finalized payroll as a member.</span></div>{{/if}}
+  </div>
+</section>
+{{> app_shell_close}}

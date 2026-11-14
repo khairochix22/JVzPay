@@ -1,0 +1,25 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header"><div><h1>Accounting Adjustments</h1><p>Manual journal entries. Debits must equal credits, and a different authorised person must approve before posting.</p></div></div>
+<section class="card mb"><div class="card__header"><h2>New adjustment</h2></div>
+  <form class="card__body" method="POST" action="/accounting/adjustments" novalidate><input type="hidden" name="_csrf" value="{{csrfToken}}">
+    {{#if formError}}<div class="alert alert--error" role="alert"><svg class="ic"><use href="#i-alert"/></svg><div>{{formError}}</div></div>{{/if}}
+    <div class="form-grid" style="margin-bottom:14px">
+      {{> field name="txn_date" label="Date" type="date" required=true value=form.txn_date}}
+      {{> field name="description" label="Description" required=true value=form.description}}
+    </div>
+    <div class="table-wrap"><table data-table-tools class="table"><thead><tr><th>Account</th><th>Debit</th><th>Credit</th><th>Line note</th></tr></thead><tbody>
+      {{#each slots}}<tr>
+        <td><select class="select" name="lines[{{this}}][account_id]" aria-label="Account" style="min-width:220px"><option value="">—</option>{{#each ../accounts}}<option value="{{id}}">{{code}} {{name}}</option>{{/each}}</select></td>
+        <td><input class="input" name="lines[{{this}}][debit]" inputmode="decimal" aria-label="Debit" style="min-width:100px"></td>
+        <td><input class="input" name="lines[{{this}}][credit]" inputmode="decimal" aria-label="Credit" style="min-width:100px"></td>
+        <td><input class="input" name="lines[{{this}}][description]" aria-label="Line note" style="min-width:140px"></td>
+      </tr>{{/each}}</tbody></table></div>
+    <div class="form-actions"><button class="btn btn--primary" type="submit">Submit for approval</button></div>
+  </form></section>
+<section class="card"><div class="card__header"><h2>Recent adjustments</h2></div>
+  <div class="card__body card__body--flush" style="padding-top:8px">{{#if recent.length}}
+  <div class="table-wrap"><table data-table-tools class="table table--stack"><thead><tr><th>Adjustment</th><th>Date</th><th class="text-right">Amount</th><th>Status</th></tr></thead><tbody>{{#each recent}}<tr>
+    <td class="cell-primary"><strong>{{txn_no}}</strong> {{description}}<br><span class="muted">by {{created_by_name}}</span></td><td data-label="Date" class="nowrap">{{date txn_date}}</td><td data-label="Amount" class="text-right num">{{money amount}}</td><td data-label="Status"><div>{{badge status}}{{#if decision_remarks}}<br><span class="muted" style="font-size:12px">“{{decision_remarks}}”</span>{{/if}}</div></td>
+  </tr>{{/each}}</tbody></table></div>{{else}}<div class="empty empty--sm">No adjustments yet.</div>{{/if}}</div></section>
+{{> app_shell_close}}

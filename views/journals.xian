@@ -1,0 +1,17 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header"><div><h1>Journal Entries</h1><p>Posted entries are permanent. Corrections are made with reversing entries.</p></div></div>
+<section class="card">
+  <form class="toolbar" method="GET" action="/accounting/journals"><div class="input-group search"><svg class="ic"><use href="#i-search"/></svg><label class="sr-only" for="q">Search</label><input class="input" type="search" id="q" name="q" value="{{t.q}}" placeholder="Entry no. or description" data-autosubmit></div>
+    <input class="input" style="width:auto" type="date" name="from" value="{{from}}" aria-label="From date"><input class="input" style="width:auto" type="date" name="to" value="{{to}}" aria-label="To date">
+    <select class="select" name="status" aria-label="Status" data-autosubmit><option value="">All statuses</option>{{#each (array "posted" "reversed" "draft")}}<option value="{{this}}" {{selected this ../status}}>{{humanize this}}</option>{{/each}}</select>
+    <button class="btn btn--secondary" type="submit">Apply</button></form>
+  {{#if rows.length}}
+  <div class="table-wrap"><table class="table table--stack"><thead><tr>{{sortTh meta "no" "Entry"}}{{sortTh meta "date" "Date"}}<th>Source</th>{{sortTh meta "amount" "Amount"}}<th>Status</th><th class="actions"><span class="sr-only">Open</span></th></tr></thead>
+    <tbody>{{#each rows}}<tr>
+      <td class="cell-primary"><strong>{{entry_no}}</strong><br><span class="muted">{{description}}</span></td><td data-label="Date" class="nowrap">{{date entry_date}}</td><td data-label="Source">{{humanize source_type}} · {{humanize source_event}}</td><td data-label="Amount" class="text-right num">{{money total_debit}}</td><td data-label="Status">{{badge status}}</td><td class="actions"><a class="btn btn--secondary btn--sm" href="/accounting/journals/{{id}}">Open</a></td>
+    </tr>{{/each}}</tbody></table></div>
+  {{> pager meta=meta}}
+  {{else}}<div class="empty"><svg class="ic"><use href="#i-file-text"/></svg><strong>No journal entries</strong>Entries appear as income, expenses and payroll are posted.</div>{{/if}}
+</section>
+{{> app_shell_close}}

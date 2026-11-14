@@ -1,0 +1,61 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><h1>Retirement Fund</h1><p>Employees contribute 10%, 15% or 20% of the basic monthly salary every payday and the company adds the same amount. After {{vestingYears}} years of service the whole fund can be withdrawn; before that only the employee's share, and the company share is forfeited.</p></div>
+</div>
+
+<div class="grid grid--kpi">
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-users"/></svg></div><div><div class="kpi__label">Enrolled</div><div class="kpi__value">{{totals.enrolled}}</div><div class="kpi__hint">Employees contributing now</div></div></div>
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-wallet"/></svg></div><div><div class="kpi__label">Fund balance</div><div class="kpi__value">{{money totals.total}}</div><div class="kpi__hint">Finalized payroll, not yet withdrawn</div></div></div>
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-user"/></svg></div><div><div class="kpi__label">Employee shares</div><div class="kpi__value">{{money totals.ee}}</div></div></div>
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-briefcase"/></svg></div><div><div class="kpi__label">Company shares</div><div class="kpi__value">{{money totals.er}}</div></div></div>
+</div>
+
+<section class="card mb">
+  <div class="card__header"><div><h2>Withdrawals</h2></div></div>
+  <div class="card__body card__body--flush">
+    {{#if withdrawals.length}}<div class="table-wrap"><table class="table table--stack"><thead><tr><th>Employee</th><th>Reason</th><th class="text-right">Employee / company</th><th class="text-right">Payable</th><th class="text-right">Forfeited</th><th>Status</th><th class="actions"><span class="sr-only">Actions</span></th></tr></thead><tbody>
+    {{#each withdrawals}}<tr><td class="cell-primary"><strong>{{name}}</strong><br><span class="muted">{{withdrawal_no}} · {{employee_no}} · filed by {{requested_by_name}}</span></td>
+      <td data-label="Reason">{{reasonLabel}}<br><span class="muted">{{tenure_years}} years{{#if vested}} · vested{{/if}}</span>{{#if remarks}}<br><span class="muted">“{{remarks}}”</span>{{/if}}</td>
+      <td data-label="Employee / company" class="text-right num">{{money employee_share}}<br><span class="muted">{{money company_share}}</span></td>
+      <td data-label="Payable" class="text-right num"><strong>{{money payable_amount}}</strong></td>
+      <td data-label="Forfeited" class="text-right num">{{money forfeited_amount}}</td>
+      <td data-label="Status">{{badge status}}{{#if decided_by_name}}<br><span class="muted">by {{decided_by_name}}</span>{{/if}}{{#if decision_remarks}}<br><span class="muted">“{{decision_remarks}}”</span>{{/if}}{{#if payment_reference}}<br><span class="muted">Paid: {{payment_reference}}</span>{{/if}}</td>
+      <td class="actions">
+        {{#if (eq status "pending")}}{{#if ../canApprove}}{{> decide_inline action=(concat "/payroll/retirement/withdrawals/" id "/decision") csrf=../csrfToken own=(eq employee_id @root.me.employeeId)}}{{else}}<span class="muted">Waiting for the Accounting Supervisor</span>{{/if}}{{/if}}
+        {{#if (eq status "approved")}}{{#if ../canManage}}<form method="POST" action="/payroll/retirement/withdrawals/{{id}}/paid" style="display:flex;gap:6px;flex-wrap:wrap"><input type="hidden" name="_csrf" value="{{../csrfToken}}"><input class="input" name="reference" placeholder="Check / transfer no." maxlength="100" required aria-label="Payment reference" style="min-height:36px;flex:1 1 140px"><button class="btn btn--primary btn--sm" type="submit">Record payout</button></form>{{/if}}{{/if}}
+      </td></tr>{{/each}}
+    </tbody></table></div>
+    {{else}}<div class="empty empty--sm"><svg class="ic"><use href="#i-inbox"/></svg><strong>No withdrawals yet</strong></div>{{/if}}
+  </div>
+</section>
+
+{{#if canManage}}{{#if separated.length}}
+<section class="card mb">
+  <div class="card__header"><div><h2>File a withdrawal for a separated employee</h2><p class="muted">Resigned or terminated employees with money still in the fund.</p></div></div>
+  <form class="card__body" method="POST" action="/payroll/retirement/withdrawals">
+    <input type="hidden" name="_csrf" value="{{csrfToken}}">
+    <div class="form-grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
+      <div class="field"><label for="employee_id">Employee</label><select class="select" id="employee_id" name="employee_id" required>{{#each separated}}<option value="{{id}}">{{name}} ({{employee_no}}) — {{humanize employment_status}}</option>{{/each}}</select></div>
+      <div class="field"><label for="reason">Reason</label><select class="select" id="reason" name="reason" required><option value="resigned">Resigned</option><option value="terminated">Terminated</option><option value="retirement">Retirement (vested)</option></select></div>
+      <div class="field"><label for="remarks">Remarks</label><input class="input" id="remarks" name="remarks" maxlength="500"></div>
+    </div>
+    <div class="form-actions"><button class="btn btn--primary" type="submit">File withdrawal</button></div>
+  </form>
+</section>
+{{/if}}{{/if}}
+
+<section class="card">
+  <div class="card__header"><div><h2>Members</h2></div></div>
+  <div class="card__body card__body--flush">
+    {{#if rows.length}}<div class="table-wrap"><table class="table table--stack"><thead><tr><th>Employee</th><th class="text-right">Rate</th><th class="text-right">Service</th><th class="text-right">Employee</th><th class="text-right">Company</th><th class="text-right">Withdrawable now</th></tr></thead><tbody>
+    {{#each rows}}<tr><td class="cell-primary"><strong>{{name}}</strong><br><span class="muted">{{employee_no}} · {{department}}{{#unless (eq employment_status "active")}} · {{humanize employment_status}}{{/unless}}</span></td>
+      <td data-label="Rate" class="text-right num">{{#if rate_percent}}{{rate_percent}}%{{else}}<span class="muted">not contributing</span>{{/if}}</td>
+      <td data-label="Service" class="text-right num">{{tenure}} yrs {{#if vested}}<span class="badge badge--success">Vested</span>{{/if}}</td>
+      <td data-label="Employee" class="text-right num">{{money ee}}</td><td data-label="Company" class="text-right num">{{money er}}</td>
+      <td data-label="Withdrawable now" class="text-right num"><strong>{{money withdrawable}}</strong></td></tr>{{/each}}
+    </tbody></table></div>
+    {{else}}<div class="empty empty--sm"><svg class="ic"><use href="#i-shield"/></svg><strong>No one has enrolled yet</strong><span class="muted">Employees enroll from Retirement Fund in their workspace.</span></div>{{/if}}
+  </div>
+</section>
+{{> app_shell_close}}

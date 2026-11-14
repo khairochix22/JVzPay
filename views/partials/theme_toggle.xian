@@ -1,0 +1,1 @@
+<button type="button" class="icon-btn {{extra}}" data-theme-toggle aria-label="Switch to dark theme" title="Switch to dark theme"><svg class="ic theme-ic--moon"><use href="#i-moon"/></svg><svg class="ic theme-ic--sun"><use href="#i-sun"/></svg></button>

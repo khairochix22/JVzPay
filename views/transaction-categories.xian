@@ -1,0 +1,23 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header"><div><h1>Transaction Categories</h1><p>Each category posts to its linked account in the chart of accounts.</p></div></div>
+<div class="grid grid--main-side">
+  <section class="card" style="align-self:start"><div class="table-wrap"><table data-table-tools class="table table--stack">
+    <thead><tr><th>Category</th><th>Type</th><th>Account</th><th>Status</th>{{#if canManage}}<th class="actions"><span class="sr-only">Actions</span></th>{{/if}}</tr></thead>
+    <tbody>{{#each categories}}<tr>
+      <td class="cell-primary"><strong>{{name}}</strong></td><td data-label="Type">{{humanize category_type}}</td><td data-label="Account">{{account_code}} {{account_name}}</td>
+      <td data-label="Status">{{#if is_active}}{{badge "active"}}{{else}}{{badge "inactive"}}{{/if}}</td>
+      {{#if ../canManage}}<td class="actions"><form method="POST" action="/accounting/categories/{{id}}/toggle"><input type="hidden" name="_csrf" value="{{../csrfToken}}"><button class="btn btn--ghost btn--sm" type="submit">{{#if is_active}}Deactivate{{else}}Activate{{/if}}</button></form></td>{{/if}}
+    </tr>{{/each}}</tbody></table></div></section>
+  {{#if canManage}}
+  <section class="card" style="align-self:start"><div class="card__header"><h2>Add category</h2></div>
+    <form class="card__body" method="POST" action="/accounting/categories" novalidate><input type="hidden" name="_csrf" value="{{csrfToken}}">
+      <div class="grid" style="gap:14px">
+        <div class="field"><label for="category_type">Type <span class="req">*</span></label><select class="select" id="category_type" name="category_type"><option value="expense">Expense</option><option value="income">Income</option></select></div>
+        {{> field name="name" label="Name" required=true}}
+        <div class="field"><label for="default_account_id">Account <span class="req">*</span></label><select class="select" id="default_account_id" name="default_account_id">{{#each accounts}}<option value="{{id}}">{{code}} {{name}}</option>{{/each}}</select></div>
+        <button class="btn btn--primary" type="submit"><svg class="ic"><use href="#i-plus"/></svg>Add category</button>
+      </div></form></section>
+  {{/if}}
+</div>
+{{> app_shell_close}}

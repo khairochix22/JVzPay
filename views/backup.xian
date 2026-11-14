@@ -1,0 +1,23 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header"><div><h1>Backup &amp; Maintenance</h1><p>Compressed copies of the database. Keep them off this computer as well.</p></div>
+  <div class="page-actions"><form method="POST" action="/settings/backup"><input type="hidden" name="_csrf" value="{{csrfToken}}"><button class="btn btn--primary" type="submit"><svg class="ic"><use href="#i-download"/></svg>Create backup now</button></form></div></div>
+<div class="alert alert--warning"><svg class="ic"><use href="#i-lock"/></svg><div>A backup contains salaries and encrypted bank and ID numbers: store it securely. Those numbers can only be read with the <code>DATA_ENCRYPTION_KEY</code> in <code>.env</code>, so back that key up separately. Uploaded documents are in <code>storage/uploads</code> and must be copied too.</div></div>
+<div class="alert {{#if auto.enabled}}alert--info{{else}}alert--warning{{/if}}"><svg class="ic"><use href="#i-clock"/></svg><div>{{#if auto.enabled}}Automatic backup runs every day at <strong>{{auto.time}}</strong> (or as soon as the app is running after that) and keeps {{auto.keepDays}} days of backups. Last automatic backup: {{#if health.lastBackup}}<strong>{{timeAgo health.lastBackup.created_at}}</strong>{{else}}<strong>none yet</strong>{{/if}}.{{else}}Automatic daily backup is <strong>off</strong>. Turn it on in System Settings → Backup.{{/if}} Change this in <a href="/settings">System Settings</a>.</div></div>
+{{#if health.lastFailure}}<div class="alert alert--error"><svg class="ic"><use href="#i-alert"/></svg><div>The last automatic backup failed {{timeAgo health.lastFailure.created_at}}: {{health.lastFailure.remarks}}</div></div>{{/if}}
+<div class="grid grid--main-side">
+  <section class="card" style="align-self:start"><div class="card__header"><h2>Backups</h2></div>
+    {{#if backups.length}}<div class="table-wrap" style="margin-top:8px"><table data-table-tools class="table table--stack"><thead><tr><th>File</th><th>Created</th><th class="text-right">Size</th><th class="actions"><span class="sr-only">Actions</span></th></tr></thead><tbody>{{#each backups}}<tr>
+      <td class="cell-primary"><strong>{{name}}</strong></td><td data-label="Created" class="nowrap">{{datetime created}}</td><td data-label="Size" class="text-right num">{{size}}</td>
+      <td class="actions"><a class="btn btn--secondary btn--sm" href="/settings/backup/{{name}}/download">Download</a> <form method="POST" action="/settings/backup/{{name}}/delete" style="display:inline" data-confirm="Delete {{name}}? This cannot be undone." data-confirm-label="Delete" data-confirm-tone="danger"><input type="hidden" name="_csrf" value="{{../csrfToken}}"><button class="btn btn--ghost btn--sm" type="submit">Delete</button></form></td>
+    </tr>{{/each}}</tbody></table></div>
+    {{else}}<div class="empty"><svg class="ic"><use href="#i-inbox"/></svg><strong>No backups yet</strong>Create one before your first real payroll.</div>{{/if}}
+    <div class="card__body" style="border-top:1px solid var(--border)"><strong>Restoring a backup</strong><p class="muted" style="margin-top:4px;font-size:13.5px">Restoring replaces all current data, so it is done from the command line, not from this page. Stop the app, run <code>npm run restore -- storage/backups/the-file.sql.gz</code> in the project folder, then start the app again. The command checks the file first and saves a safety copy of the current data, so a restore can be undone.</p></div>
+  </section>
+  <section class="card" style="align-self:start"><div class="card__header"><h2>Maintenance</h2></div><div class="card__body">
+    <dl class="dl" style="grid-template-columns:1fr auto"><dt>Database size</dt><dd class="num">{{stats.dbMb}} MB</dd><dt>Tables</dt><dd class="num">{{stats.tables}}</dd><dt>Sessions</dt><dd class="num">{{stats.sessions}}</dd><dt>Expired sessions</dt><dd class="num">{{stats.expired}}</dd><dt>Old read notifications</dt><dd class="num">{{stats.oldNotifications}}</dd></dl>
+    <form method="POST" action="/settings/backup/cleanup" style="margin-top:14px"><input type="hidden" name="_csrf" value="{{csrfToken}}"><button class="btn btn--secondary btn--block" type="submit">Run cleanup</button></form>
+    <p class="field__hint" style="margin-top:8px">Removes expired sessions and read notifications older than 180 days. Audit logs and financial records are never removed.</p>
+  </div></section>
+</div>
+{{> app_shell_close}}

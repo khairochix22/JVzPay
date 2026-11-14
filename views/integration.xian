@@ -1,0 +1,74 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><h1>Integration</h1><p>Events exchanged with the JOHNVIVZ HR, CRM and Inventory applications. The contract is in <code>docs/API_INTEGRATION.md</code>.</p></div>
+</div>
+
+{{#if newToken}}
+<div class="alert alert--warning" role="alert"><svg class="ic"><use href="#i-key"/></svg>
+  <div><strong>Copy this token now. It will not be shown again.</strong><br><code style="word-break:break-all;user-select:all">{{newToken}}</code><br>Give it only to the developer of that application. JVzPay keeps just a fingerprint of it.</div>
+</div>
+{{/if}}
+
+<div class="grid grid--kpi">
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-inbox"/></svg></div><div><div class="kpi__label">Events applied</div><div class="kpi__value">{{counts.processed}}</div><div class="kpi__hint">Received from HR, CRM and Inventory</div></div></div>
+  <div class="kpi {{#if counts.failedIn}}kpi--danger{{/if}}"><div class="kpi__icon"><svg class="ic"><use href="#i-alert"/></svg></div><div><div class="kpi__label">Received, not applied</div><div class="kpi__value">{{counts.failedIn}}</div><div class="kpi__hint">Fix the cause, then retry</div></div></div>
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-send"/></svg></div><div><div class="kpi__label">Events delivered</div><div class="kpi__value">{{counts.sent}}</div><div class="kpi__hint">Sent by JVzPay</div></div></div>
+  <div class="kpi {{#if counts.failedOut}}kpi--danger{{else}}{{#if counts.notConnected}}kpi--warning{{/if}}{{/if}}"><div class="kpi__icon"><svg class="ic"><use href="#i-clock"/></svg></div><div><div class="kpi__label">Waiting to be sent</div><div class="kpi__value">{{add counts.pendingOut counts.notConnected}}</div><div class="kpi__hint">{{counts.notConnected}} waiting for an address · {{counts.failedOut}} gave up</div></div></div>
+</div>
+
+<div class="grid grid--2 mb">
+  <section class="card">
+    <div class="card__header"><div><h2>Connections</h2><p>Where JVzPay sends its events (set in <code>.env</code>)</p></div></div>
+    <div class="card__body card__body--flush" style="padding-top:8px">
+      <ul class="list">
+        {{#each targets}}<li class="list__item"><div class="list__body"><strong>{{label}}</strong><small>{{#if connected}}Address set: events are delivered{{else}}No address yet: events wait in the outbox{{/if}}</small></div>{{#if connected}}<span class="badge badge--success">Connected</span>{{else}}<span class="badge badge--warning">Not connected</span>{{/if}}</li>{{/each}}
+        <li class="list__item"><div class="list__body"><strong>Last HR employee update</strong><small>{{#if lastHrSync}}{{datetime lastHrSync}}{{else}}HR has not sent any employee record yet{{/if}}</small></div></li>
+      </ul>
+    </div>
+  </section>
+  <section class="card">
+    <div class="card__header"><div><h2>Service tokens</h2><p>One per application that sends events to JVzPay</p></div></div>
+    <div class="card__body">
+      <form method="POST" action="/settings/integration/tokens" class="form-grid" style="grid-template-columns:1fr 1fr auto;align-items:end">
+        <input type="hidden" name="_csrf" value="{{csrfToken}}">
+        <div class="field"><label for="source">Application</label><select class="select" id="source" name="source" required>{{#each sources}}<option value="{{code}}">{{label}}</option>{{/each}}</select></div>
+        <div class="field"><label for="name">Label</label><input class="input" id="name" name="name" maxlength="120" placeholder="e.g. HR production server"></div>
+        <button class="btn btn--primary" type="submit"><svg class="ic"><use href="#i-key"/></svg>Create token</button>
+      </form>
+    </div>
+    <div class="card__body card__body--flush">
+      {{#if clients.length}}<div class="table-wrap"><table class="table table--stack"><thead><tr><th>Application</th><th>Token</th><th>Last used</th><th>Status</th><th class="actions"><span class="sr-only">Actions</span></th></tr></thead><tbody>
+      {{#each clients}}<tr><td class="cell-primary"><strong>{{name}}</strong><br><span class="muted">{{source}}</span></td><td data-label="Token" class="num">…{{token_hint}}</td><td data-label="Last used">{{#if last_used_at}}{{timeAgo last_used_at}}{{else}}Never{{/if}}</td><td data-label="Status">{{#if is_active}}<span class="badge badge--success">Active</span>{{else}}<span class="badge badge--neutral">Revoked</span>{{/if}}</td>
+        <td class="actions">{{#if is_active}}<form method="POST" action="/settings/integration/tokens/{{id}}/revoke" data-confirm="Revoke this token? The application using it will be refused until it gets a new one." data-confirm-label="Revoke" data-confirm-tone="danger"><input type="hidden" name="_csrf" value="{{../csrfToken}}"><button class="btn btn--secondary btn--sm" type="submit">Revoke</button></form>{{/if}}</td></tr>{{/each}}
+      </tbody></table></div>
+      {{else}}<div class="empty empty--sm"><svg class="ic"><use href="#i-key"/></svg><strong>No tokens yet</strong>Create one for each application that will send events.</div>{{/if}}
+    </div>
+  </section>
+</div>
+
+<section class="card">
+  <div class="card__header">
+    <div><h2>Events</h2><p>The latest 100</p></div>
+    <form method="GET" action="/settings/integration" class="page-actions">
+      <select class="select" name="direction" data-autosubmit aria-label="Direction"><option value="in" {{selected direction "in"}}>Received</option><option value="out" {{selected direction "out"}}>Sent</option></select>
+      <select class="select" name="status" data-autosubmit aria-label="Status"><option value="">All statuses</option>{{#each statuses}}<option value="{{this}}" {{selected ../status this}}>{{humanize this}}</option>{{/each}}</select>
+    </form>
+  </div>
+  <div class="card__body card__body--flush" style="padding-top:12px">
+    {{#if (eq direction "in")}}
+      {{#if inbox.length}}<div class="table-wrap"><table class="table table--stack"><thead><tr><th>Event</th><th>From</th><th>Entity</th><th>Received</th><th>Status</th><th class="actions"><span class="sr-only">Retry</span></th></tr></thead><tbody>
+      {{#each inbox}}<tr><td class="cell-primary"><strong>{{event_type}}</strong><br><span class="muted" style="font-size:12px">{{event_id}}</span>{{#if error}}<br><span class="field__error">{{error}}</span>{{/if}}{{#if result_ref}}<br><span class="muted">{{result_ref}}</span>{{/if}}</td><td data-label="From">{{source}}</td><td data-label="Entity">{{default entity_id "—"}}</td><td data-label="Received" class="nowrap">{{datetime received_at}}</td><td data-label="Status">{{badge status}}</td>
+        <td class="actions">{{#if (eq status "failed")}}<form method="POST" action="/settings/integration/inbox/{{id}}/retry"><input type="hidden" name="_csrf" value="{{../csrfToken}}"><button class="btn btn--secondary btn--sm" type="submit">Retry</button></form>{{/if}}</td></tr>{{/each}}
+      </tbody></table></div>
+      {{else}}<div class="empty empty--sm"><svg class="ic"><use href="#i-inbox"/></svg><strong>No events received</strong>Events appear here once HR, CRM or Inventory start sending them.</div>{{/if}}
+    {{else}}
+      {{#if outbox.length}}<div class="table-wrap"><table class="table table--stack"><thead><tr><th>Event</th><th>To</th><th>Entity</th><th>Queued</th><th>Status</th><th class="actions"><span class="sr-only">Retry</span></th></tr></thead><tbody>
+      {{#each outbox}}<tr><td class="cell-primary"><strong>{{event_type}}</strong><br><span class="muted" style="font-size:12px">{{event_id}}</span>{{#if last_error}}<br><span class="field__error">{{last_error}}</span>{{/if}}</td><td data-label="To">{{upper target}}</td><td data-label="Entity">{{default entity_id "—"}}</td><td data-label="Queued" class="nowrap">{{datetime created_at}}</td><td data-label="Status">{{badge status}} <span class="muted">· {{attempts}} tr{{#if (eq attempts 1)}}y{{else}}ies{{/if}}</span></td>
+        <td class="actions">{{#unless (eq status "sent")}}<form method="POST" action="/settings/integration/outbox/{{id}}/retry"><input type="hidden" name="_csrf" value="{{../csrfToken}}"><button class="btn btn--secondary btn--sm" type="submit">Send now</button></form>{{/unless}}</td></tr>{{/each}}
+      </tbody></table></div>
+      {{else}}<div class="empty empty--sm"><svg class="ic"><use href="#i-send"/></svg><strong>Nothing sent yet</strong>Payroll, journal and request events are queued here.</div>{{/if}}
+    {{/if}}
+  </div>
+</section>
+{{> app_shell_close}}

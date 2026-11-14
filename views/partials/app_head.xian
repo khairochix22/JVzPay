@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#062E70">
+  <script src="/js/theme.js"></script>
+  <meta name="robots" content="noindex,nofollow">
+  <title>{{title}} · JVzPay</title>
+  <link rel="stylesheet" href="/css/app.css?v=20261112b">
+  <link rel="icon" type="image/png" href="/img/favicon.png">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+</head>
+<body>
+{{> icons}}
+{{> theme_toggle extra="theme-float"}}

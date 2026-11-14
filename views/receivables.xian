@@ -1,0 +1,70 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><h1>Accounts Receivable</h1><p>What customers owe the store. CRM sales on account appear here automatically; collections clear them.</p></div>
+</div>
+
+<div class="grid grid--kpi">
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-inbox"/></svg></div><div><div class="kpi__label">Total receivable</div><div class="kpi__value">{{money aging.total}}</div><div class="kpi__hint">Not yet collected</div></div></div>
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-clock"/></svg></div><div><div class="kpi__label">Current</div><div class="kpi__value">{{money aging.current_}}</div><div class="kpi__hint">Not yet due</div></div></div>
+  <div class="kpi {{#if (gt aging.d30 0)}}kpi--warning{{/if}}"><div class="kpi__icon"><svg class="ic"><use href="#i-alert"/></svg></div><div><div class="kpi__label">1–30 days past due</div><div class="kpi__value">{{money aging.d30}}</div><div class="kpi__hint">31–60: {{money aging.d60}} · 61–90: {{money aging.d90}}</div></div></div>
+  <div class="kpi {{#if (gt aging.over90 0)}}kpi--danger{{/if}}"><div class="kpi__icon"><svg class="ic"><use href="#i-alert"/></svg></div><div><div class="kpi__label">Over 90 days</div><div class="kpi__value">{{money aging.over90}}</div><div class="kpi__hint">Follow up or provide for</div></div></div>
+</div>
+
+<div class="grid grid--main-side mb">
+  <section class="card">
+    <div class="card__header"><div><h2>Record a receivable</h2><p>Posts Dr Accounts Receivable / Cr revenue</p></div></div>
+    <form class="card__body" method="POST" action="/accounting/receivables" novalidate>
+      <input type="hidden" name="_csrf" value="{{csrfToken}}">
+      {{#if errors.form}}<div class="alert alert--error" role="alert"><svg class="ic"><use href="#i-alert"/></svg><div>{{errors.form}}</div></div>{{/if}}
+      <div class="form-grid" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr))">
+        <div class="field"><label for="customer_id">Customer <span class="req">*</span></label><select class="select" id="customer_id" name="customer_id"><option value="">Select</option>{{#each activeCustomers}}<option value="{{id}}" {{selected id ../form.customer_id}}>{{name}}</option>{{/each}}</select>{{#if errors.customer_id}}<span class="field__error">{{errors.customer_id}}</span>{{/if}}</div>
+        {{> field name="invoice_date" label="Invoice date" type="date" required=true value=form.invoice_date error=errors.invoice_date}}
+        {{> field name="due_date" label="Due date" type="date" required=true value=form.due_date error=errors.due_date}}
+        {{> field name="amount" label="Amount (₱)" required=true value=form.amount error=errors.amount inputmode="decimal"}}
+        <div class="field"><label for="revenue_account_id">Revenue account <span class="req">*</span></label><select class="select" id="revenue_account_id" name="revenue_account_id">{{#each revenue}}<option value="{{id}}" {{selected id ../form.revenue_account_id}}>{{code}} · {{name}}</option>{{/each}}</select></div>
+        <div class="span-2">{{> field name="description" label="Description" required=true value=form.description error=errors.description}}</div>
+      </div>
+      <div class="form-actions"><button class="btn btn--primary" type="submit">Record and post</button></div>
+    </form>
+  </section>
+  <section class="card">
+    <div class="card__header"><div><h2>Customers</h2></div></div>
+    <form class="card__body" method="POST" action="/accounting/receivables/customers" novalidate>
+      <input type="hidden" name="_csrf" value="{{csrfToken}}">
+      {{> field name="name" label="New customer" required=true value=custForm.name error=custErrors.name}}
+      <button class="btn btn--secondary btn--block" type="submit" style="margin-top:12px"><svg class="ic"><use href="#i-plus"/></svg>Add customer</button>
+    </form>
+    <div class="card__body card__body--flush">{{#if customers.length}}<ul class="list">{{#each customers}}<li class="list__item"><div class="list__body"><strong>{{name}}</strong><small>{{#if crm_ref}}From CRM ({{crm_ref}}){{else}}Added here{{/if}}</small></div><span class="num">{{money balance}}</span></li>{{/each}}</ul>{{/if}}</div>
+  </section>
+</div>
+
+<section class="card">
+  <form class="toolbar" method="GET" action="/accounting/receivables">
+    <div class="input-group search"><svg class="ic"><use href="#i-search"/></svg><label class="sr-only" for="q">Search</label><input class="input" type="search" id="q" name="q" value="{{t.q}}" placeholder="Customer, number or description" data-autosubmit></div>
+    <select class="select" name="status" data-autosubmit aria-label="Status"><option value="">All statuses</option>{{#each (array "open" "unpaid" "partially_paid" "paid" "voided")}}<option value="{{this}}" {{selected ../status this}}>{{humanize this}}</option>{{/each}}</select>
+  </form>
+  <div class="table-wrap"><table class="table table--stack"><thead><tr><th>Receivable</th><th>Customer</th><th>Due</th><th class="text-right">Amount</th><th class="text-right">Balance</th><th>Status</th><th class="actions"><span class="sr-only">Actions</span></th></tr></thead><tbody>
+  {{#each rows}}<tr>
+    <td class="cell-primary"><strong>{{receivable_no}}</strong>{{#if (eq source "crm")}} <span class="badge badge--info">CRM</span>{{/if}}<br><span class="muted">{{description}}</span></td>
+    <td data-label="Customer">{{customer_name}}</td>
+    <td data-label="Due" class="nowrap">{{date due_date}}{{#if overdue}} <span class="badge badge--danger">Overdue</span>{{/if}}</td>
+    <td data-label="Amount" class="text-right num">{{money amount}}</td>
+    <td data-label="Balance" class="text-right num">{{money balance}}</td>
+    <td data-label="Status">{{badge status}}</td>
+    <td class="actions">{{#if (or (eq status "unpaid") (eq status "partially_paid"))}}
+      <form method="POST" action="/accounting/receivables/{{id}}/collections" style="display:inline-flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+        <input type="hidden" name="_csrf" value="{{../csrfToken}}">
+        <input class="input" name="amount" value="{{balance}}" inputmode="decimal" aria-label="Amount" style="min-height:36px;width:110px">
+        <input class="input" type="date" name="payment_date" value="{{../today}}" aria-label="Collection date" style="min-height:36px;width:150px">
+        <select class="select" name="cash_account_id" aria-label="Deposited to" style="min-height:36px;width:auto">{{#each ../cash}}<option value="{{id}}">{{name}}</option>{{/each}}</select>
+        <select class="select" name="method" aria-label="Method" style="min-height:36px;width:auto">{{#each ../methods}}<option value="{{this}}">{{humanize this}}</option>{{/each}}</select>
+        <button class="btn btn--primary btn--sm" type="submit">Collect</button>
+      </form>
+      {{#if (eq status "unpaid")}}<form method="POST" action="/accounting/receivables/{{id}}/void" data-confirm="Void this receivable? Its journal entry will be reversed." data-confirm-tone="danger" data-confirm-label="Void" style="display:inline-flex;gap:6px"><input type="hidden" name="_csrf" value="{{../csrfToken}}"><input class="input" name="reason" placeholder="Reason" aria-label="Reason for voiding" style="min-height:36px;width:110px"><button class="btn btn--ghost btn--sm" type="submit">Void</button></form>{{/if}}
+    {{/if}}</td>
+  </tr>{{else}}<tr><td colspan="7"><div class="empty empty--sm"><svg class="ic"><use href="#i-inbox"/></svg><strong>No receivables</strong></div></td></tr>{{/each}}
+  </tbody></table></div>
+  {{> pager}}
+</section>
+{{> app_shell_close}}

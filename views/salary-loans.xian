@@ -1,0 +1,33 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><h1>Salary Loans</h1><p>Approve or reject employees' loan applications, then release the approved ones. Payroll deducts each loan every payday until it is paid. Nobody decides their own loan.</p></div>
+</div>
+
+<div class="grid grid--kpi">
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-wallet"/></svg></div><div><div class="kpi__label">Loans being repaid</div><div class="kpi__value">{{totals.n}}</div></div></div>
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-calculator"/></svg></div><div><div class="kpi__label">Outstanding</div><div class="kpi__value">{{money totals.outstanding}}</div><div class="kpi__hint">Still to be deducted</div></div></div>
+</div>
+
+<nav class="page-actions mb" aria-label="Filter">
+  {{#each (array "open" "pending" "approved" "released" "paid" "rejected" "all")}}<a class="btn {{#if (eq this ../status)}}btn--primary{{else}}btn--secondary{{/if}} btn--sm" href="/payroll/loans?status={{this}}">{{humanize this}}</a>{{/each}}
+</nav>
+
+<section class="card">
+  <div class="card__body card__body--flush">
+    {{#if rows.length}}<div class="table-wrap"><table class="table table--stack"><thead><tr><th>Employee</th><th>Loan</th><th class="text-right">Borrowed</th><th class="text-right">Per payday</th><th class="text-right">Balance</th><th>Status</th><th class="actions"><span class="sr-only">Actions</span></th></tr></thead><tbody>
+    {{#each rows}}<tr><td class="cell-primary"><strong>{{name}}</strong><br><span class="muted">{{employee_no}} · {{department}} · hired {{date date_hired}}</span></td>
+      <td data-label="Loan">{{loan_no}}<br><span class="muted">{{term_months}} months · {{purpose}}</span><br><span class="muted">Basic {{money monthly_basic}} · total {{money total_payable}}</span></td>
+      <td data-label="Borrowed" class="text-right num">{{money principal}}</td>
+      <td data-label="Per payday" class="text-right num">{{money amortization}} × {{paydays}}</td>
+      <td data-label="Balance" class="text-right num">{{#if pay_item_id}}{{money remaining_balance}}{{else}}—{{/if}}</td>
+      <td data-label="Status">{{badge status}}{{#if decided_by_name}}<br><span class="muted">by {{decided_by_name}}</span>{{/if}}{{#if decision_remarks}}<br><span class="muted">“{{decision_remarks}}”</span>{{/if}}{{#if release_reference}}<br><span class="muted">Released {{release_reference}}{{#if released_by_name}} by {{released_by_name}}{{/if}}</span>{{/if}}</td>
+      <td class="actions" style="min-width:240px">
+        {{#if (eq status "pending")}}{{#if ../canApprove}}{{> decide_inline action=(concat "/payroll/loans/" id "/decision") csrf=../csrfToken own=(eq employee_id @root.me.employeeId)}}{{/if}}{{/if}}
+        {{#if (eq status "approved")}}{{#if ../canRelease}}<form method="POST" action="/payroll/loans/{{id}}/release" style="display:flex;gap:6px;flex-wrap:wrap"><input type="hidden" name="_csrf" value="{{../csrfToken}}"><input class="input" name="reference" placeholder="Check / transfer no." maxlength="100" required aria-label="Release reference" style="min-height:36px;flex:1 1 140px"><button class="btn btn--primary btn--sm" type="submit">Release</button></form>{{/if}}{{/if}}
+      </td></tr>{{/each}}
+    </tbody></table></div>
+    {{else}}<div class="empty empty--sm"><svg class="ic"><use href="#i-wallet"/></svg><strong>No {{#unless (eq status "all")}}{{humanize status}} {{/unless}}loans</strong></div>{{/if}}
+  </div>
+</section>
+{{> app_shell_close}}

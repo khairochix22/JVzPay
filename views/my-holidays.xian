@@ -1,0 +1,21 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><h1>Holiday Calendar {{year}}</h1><p>Regular holidays, special non-working days and company holidays, as set by Payroll. Holiday pay follows these dates.</p></div>
+  <div class="page-actions"><a class="btn btn--secondary" href="/my/holidays?year={{prev}}">{{prev}}</a><a class="btn btn--secondary" href="/my/holidays?year={{next}}">{{next}}</a></div>
+</div>
+
+<div class="grid grid--kpi">
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-calendar"/></svg></div><div><div class="kpi__label">Holidays in {{year}}</div><div class="kpi__value">{{count}}</div><div class="kpi__hint">Active holidays on record</div></div></div>
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-clock"/></svg></div><div><div class="kpi__label">Next holiday</div><div class="kpi__value" style="font-size:20px">{{#if upcoming}}{{upcoming.name}}{{else}}None left{{/if}}</div><div class="kpi__hint">{{#if upcoming}}{{upcoming.weekday}}, {{date upcoming.iso}}{{else}}in {{year}}{{/if}}</div></div></div>
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-briefcase"/></svg></div><div><div class="kpi__label">Work schedule today</div><div class="kpi__value" style="font-size:20px">{{#if schedule.dayOff}}Day off{{else}}{{schedule.start}} – {{schedule.end}}{{/if}}</div><div class="kpi__hint">{{#unless schedule.dayOff}}Lunch {{schedule.lunch}} · {{/unless}}plotted by {{#if (eq schedule.source "hr")}}HR{{else}}the company default{{/if}} · <a href="/my/schedule">My schedule</a></div></div></div>
+</div>
+
+{{#if months.length}}
+<div class="grid grid--3">
+  {{#each months}}<section class="card"><div class="card__header"><h2>{{name}}</h2></div><div class="card__body card__body--flush" style="padding-top:6px"><ul class="list">
+    {{#each items}}<li class="list__item {{#if past}}is-read{{/if}}"><div class="list__body"><strong>{{name}}</strong><small>{{weekday}}, {{date iso}}</small></div><span class="badge {{#if (eq holiday_type "regular")}}badge--danger{{else}}{{#if (eq holiday_type "special_non_working")}}badge--warning{{else}}badge--info{{/if}}{{/if}}">{{typeLabel}}</span></li>{{/each}}
+  </ul></div></section>{{/each}}
+</div>
+{{else}}<div class="card"><div class="empty"><svg class="ic"><use href="#i-calendar"/></svg><strong>No holidays recorded for {{year}}</strong>Payroll adds them under Payroll Setup → Holidays.</div></div>{{/if}}
+{{> app_shell_close}}

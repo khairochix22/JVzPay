@@ -1,0 +1,40 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><h1>Validate Attendance</h1><p>Payroll only uses validated records. Check each day against the time sheets, then validate. You cannot validate your own attendance.</p></div>
+</div>
+
+<form class="card mb" method="GET" action="/attendance/validation" style="padding:14px 18px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+  <div class="field"><label for="from">From</label><input class="input" type="date" id="from" name="from" value="{{from}}"></div>
+  <div class="field"><label for="to">To</label><input class="input" type="date" id="to" name="to" value="{{to}}"></div>
+  <div class="field"><label for="dept">Department</label><select class="select" id="dept" name="department"><option value="">All departments</option>{{#each departments}}<option value="{{id}}" {{selected id ../department}}>{{name}}</option>{{/each}}</select></div>
+  <button class="btn btn--secondary" type="submit">Show pending</button>
+</form>
+
+<form class="card" method="POST" action="/attendance/validation" data-confirm="Validate the selected attendance records? Validated records are used for payroll computation." data-confirm-label="Validate">
+  <input type="hidden" name="_csrf" value="{{csrfToken}}"><input type="hidden" name="from" value="{{from}}"><input type="hidden" name="to" value="{{to}}">
+  <div class="card__header"><div><h2>{{rows.length}} record(s) awaiting validation</h2><p>{{date from}} – {{date to}}{{#if (gt rows.length 499)}} · showing the first 500{{/if}}</p></div>
+    {{#if rows.length}}<label class="check"><input type="checkbox" data-check-all="ids"> Select all</label>{{/if}}</div>
+  {{#if rows.length}}
+  <div class="table-wrap" style="margin-top:10px"><table class="table table--stack">
+    <thead><tr><th><span class="sr-only">Select</span></th><th>Date</th><th>Employee</th><th>In – Out</th><th>Status</th><th class="text-right">Hours</th><th class="text-right">Late / UT</th><th>Encoded by</th></tr></thead>
+    <tbody>
+      {{#each rows}}
+      <tr>
+        <td data-label="Select">{{#if own}}<span class="muted" title="Your own record">—</span>{{else}}<input type="checkbox" name="ids" value="{{id}}" aria-label="Validate {{name}} on {{date work_date}}" style="width:20px;height:20px">{{/if}}</td>
+        <td data-label="Date" class="nowrap">{{date work_date}}</td>
+        <td class="cell-primary"><strong>{{name}}</strong>{{#if own}} <span class="badge badge--neutral">You</span>{{/if}}<br><span class="muted">{{employee_no}} · {{department}}</span></td>
+        <td data-label="In – Out">{{time time_in}} – {{time time_out}}</td>
+        <td data-label="Status">{{badge status}}</td>
+        <td data-label="Hours" class="text-right num">{{fixed hours_worked 2}}</td>
+        <td data-label="Late / UT" class="text-right num">{{late_minutes}} / {{undertime_minutes}}{{#if (gt overbreak_minutes 0)}}<br><span class="muted" title="Minutes past breaks or lunch">lost {{overbreak_minutes}}</span>{{/if}}</td>
+        <td data-label="Encoded by">{{default encoded_by "—"}}</td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table></div>
+  <div class="card__footer"><span class="muted" style="font-size:13px">Need to fix a record? Edit it on the Encode Attendance sheet first.</span><button class="btn btn--primary" type="submit"><svg class="ic"><use href="#i-check"/></svg>Validate selected</button></div>
+  {{else}}<div class="empty"><svg class="ic"><use href="#i-check-circle"/></svg><strong>Nothing to validate</strong>All attendance in this range has been validated.</div>{{/if}}
+</form>
+<script src="/js/tables.js"></script>
+{{> app_shell_close}}

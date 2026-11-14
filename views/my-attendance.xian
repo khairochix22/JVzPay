@@ -1,0 +1,127 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><h1>My Attendance</h1><p>Your daily time records. You can't edit them directly — request a correction and an Accounting Supervisor will review it.</p></div>
+  <div class="page-actions"><a class="btn btn--primary" href="/my/attendance?month={{range.ym}}&date={{today}}#correction"><svg class="ic"><use href="#i-edit"/></svg>Request correction</a></div>
+</div>
+
+<div class="card mb" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;gap:10px">
+  <a class="btn btn--ghost btn--sm" href="/my/attendance?month={{range.prev}}" aria-label="Previous month"><svg class="ic ic--sm"><use href="#i-chevron-left"/></svg>Previous</a>
+  <strong style="color:var(--primary)">{{range.label}}</strong>
+  {{#if range.next}}<a class="btn btn--ghost btn--sm" href="/my/attendance?month={{range.next}}" aria-label="Next month">Next<svg class="ic ic--sm"><use href="#i-chevron-right"/></svg></a>{{else}}<span class="btn btn--ghost btn--sm" aria-disabled="true">Next<svg class="ic ic--sm"><use href="#i-chevron-right"/></svg></span>{{/if}}
+</div>
+
+<div class="grid grid--kpi">
+  <div class="kpi kpi--success"><div class="kpi__icon"><svg class="ic"><use href="#i-check-circle"/></svg></div><div><div class="kpi__label">Present</div><div class="kpi__value">{{summary.present}}</div><div class="kpi__hint">days</div></div></div>
+  <div class="kpi kpi--warning"><div class="kpi__icon"><svg class="ic"><use href="#i-clock"/></svg></div><div><div class="kpi__label">Late</div><div class="kpi__value">{{summary.late}}</div><div class="kpi__hint">{{summary.lateMinutes}} min total · undertime {{summary.undertimeMinutes}} min</div></div></div>
+  <div class="kpi kpi--danger"><div class="kpi__icon"><svg class="ic"><use href="#i-x"/></svg></div><div><div class="kpi__label">Absent</div><div class="kpi__value">{{summary.absent}}</div><div class="kpi__hint">days</div></div></div>
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-calendar"/></svg></div><div><div class="kpi__label">On leave</div><div class="kpi__value">{{summary.on_leave}}</div><div class="kpi__hint">Approved overtime: {{fixed summary.overtimeHours 2}} h</div></div></div>
+</div>
+
+<section class="card mb">
+  <div class="card__header"><div><h2>Daily time record</h2><p>{{range.label}}</p></div></div>
+  <div class="card__body card__body--flush" style="padding-top:8px">
+    {{#if records.length}}
+    <div class="table-wrap"><table data-table-tools class="table table--stack">
+      <thead><tr><th>Date</th><th>Time in</th><th>Time out</th><th>Status</th><th class="text-right">Hours</th><th class="text-right">Late / Undertime</th><th>Validation</th><th class="actions"><span class="sr-only">Actions</span></th></tr></thead>
+      <tbody>
+        {{#each records}}
+        <tr>
+          <td class="cell-primary"><strong>{{date work_date}}</strong></td>
+          <td data-label="Time in">{{time time_in}}</td>
+          <td data-label="Time out">{{time time_out}}</td>
+          <td data-label="Status">{{badge status}}</td>
+          <td data-label="Hours" class="text-right num">{{fixed hours_worked 2}}</td>
+          <td data-label="Late / UT" class="text-right num">{{late_minutes}} / {{undertime_minutes}} min{{#if (gt overbreak_minutes 0)}}<br><span class="muted">lost {{overbreak_minutes}} min</span>{{/if}}</td>
+          <td data-label="Validation">{{badge validation_status}}</td>
+          <td class="actions">
+            {{#if pending_correction}}<span class="badge badge--warning">Correction pending</span>
+            {{else if (eq validation_status "locked")}}<span class="muted" style="font-size:12.5px">Locked by payroll</span>
+            {{else}}<a class="btn btn--ghost btn--sm" href="/my/attendance?month={{../range.ym}}&date={{inputDate work_date}}#correction">Request correction</a>{{/if}}
+          </td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table></div>
+    {{else}}
+    <div class="empty"><svg class="ic"><use href="#i-clock"/></svg><strong>No time records for {{range.label}}</strong>Records appear once Payroll Staff encode attendance. If a day is missing or wrong, request a correction.</div>
+    {{/if}}
+  </div>
+</section>
+
+<section class="card mb" id="correction">
+  <div class="card__header"><div><h2>Request an attendance correction</h2><p>Your original record is kept unchanged until a supervisor approves the correction.</p></div></div>
+  {{#if showForm}}
+  <form class="card__body" method="POST" action="/my/attendance/corrections" enctype="multipart/form-data" novalidate>
+    <input type="hidden" name="_csrf" value="{{csrfToken}}">
+    {{#if errors.form}}<div class="alert alert--error" role="alert"><svg class="ic"><use href="#i-alert"/></svg><div>{{errors.form}}</div></div>{{/if}}
+    <div class="form-grid">
+      <div class="field">
+        <label for="work_date">Date <span class="req">*</span></label>
+        <input class="input" type="date" id="work_date" name="work_date" value="{{form.work_date}}" max="{{today}}" required {{#if errors.work_date}}aria-invalid="true"{{/if}}>
+        {{#if errors.work_date}}<span class="field__error">{{errors.work_date}}</span>{{/if}}
+      </div>
+      <div class="field">
+        <label for="requested_status">Correct status <span class="req">*</span></label>
+        <select class="select" id="requested_status" name="requested_status" required>
+          {{#each statuses}}<option value="{{this}}" {{selected this ../form.requested_status}}>{{humanize this}}</option>{{/each}}
+        </select>
+        {{#if errors.requested_status}}<span class="field__error">{{errors.requested_status}}</span>{{/if}}
+      </div>
+      <div class="field">
+        <label for="requested_time_in">Correct time in</label>
+        <input class="input" type="time" id="requested_time_in" name="requested_time_in" value="{{form.requested_time_in}}" {{#if errors.requested_time_in}}aria-invalid="true"{{/if}}>
+        <span class="field__hint">Required for Present, Late and Half day.</span>
+        {{#if errors.requested_time_in}}<span class="field__error">{{errors.requested_time_in}}</span>{{/if}}
+      </div>
+      <div class="field">
+        <label for="requested_time_out">Correct time out</label>
+        <input class="input" type="time" id="requested_time_out" name="requested_time_out" value="{{form.requested_time_out}}" {{#if errors.requested_time_out}}aria-invalid="true"{{/if}}>
+        {{#if errors.requested_time_out}}<span class="field__error">{{errors.requested_time_out}}</span>{{/if}}
+      </div>
+      <div class="field span-2">
+        <label for="reason">Reason <span class="req">*</span></label>
+        <textarea class="textarea" id="reason" name="reason" maxlength="500" required placeholder="e.g. Forgot to time out; left at 5:10 PM after closing the cashier counter." {{#if errors.reason}}aria-invalid="true"{{/if}}>{{form.reason}}</textarea>
+        {{#if errors.reason}}<span class="field__error">{{errors.reason}}</span>{{/if}}
+      </div>
+      <div class="field span-2">
+        <label for="attachment">Supporting document <span class="muted" style="font-weight:400">(optional)</span></label>
+        <input class="input" type="file" id="attachment" name="attachment" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
+        <span class="field__hint">PDF, JPG or PNG up to 5 MB.</span>
+        {{#if errors.attachment}}<span class="field__error">{{errors.attachment}}</span>{{/if}}
+      </div>
+    </div>
+    <div class="form-actions"><a class="btn btn--secondary" href="/my/attendance?month={{range.ym}}">Cancel</a><button type="submit" class="btn btn--primary">Submit correction request</button></div>
+  </form>
+  {{else}}
+  <div class="card__body"><a class="btn btn--secondary" href="/my/attendance?month={{range.ym}}&date={{today}}#correction"><svg class="ic"><use href="#i-plus"/></svg>Start a correction request</a></div>
+  {{/if}}
+</section>
+
+<section class="card">
+  <div class="card__header"><div><h2>My correction requests</h2><p>Latest 20</p></div></div>
+  <div class="card__body card__body--flush" style="padding-top:8px">
+    {{#if corrections.length}}
+    <div class="table-wrap"><table data-table-tools class="table table--stack">
+      <thead><tr><th>Request</th><th>Date</th><th>Original</th><th>Requested</th><th>Status</th><th>Decision</th><th class="actions"><span class="sr-only">Actions</span></th></tr></thead>
+      <tbody>
+        {{#each corrections}}
+        <tr>
+          <td class="cell-primary"><strong>{{request_no}}</strong><br><span class="muted">{{timeAgo submitted_at}}</span></td>
+          <td data-label="Date">{{date work_date}}</td>
+          <td data-label="Original"><div>{{#if original_status}}{{humanize original_status}} · {{time original_time_in}}–{{time original_time_out}}{{else}}<span class="muted">No record</span>{{/if}}</div></td>
+          <td data-label="Requested"><div>{{humanize requested_status}}{{#if requested_time_in}} · {{time requested_time_in}}–{{time requested_time_out}}{{/if}}</div></td>
+          <td data-label="Status">{{badge status}}{{> sup_step}}</td>
+          <td data-label="Decision"><div>{{#if decided_at}}{{decided_by_name}} · {{date decided_at}}{{#if decision_remarks}}<br><span class="muted">“{{decision_remarks}}”</span>{{/if}}{{else}}<span class="muted">Awaiting review</span>{{/if}}</div></td>
+          <td class="actions">{{#if (eq status "pending")}}
+            <form method="POST" action="/my/attendance/corrections/{{id}}/cancel" data-confirm="Cancel correction request {{request_no}}?" data-confirm-label="Cancel request" data-confirm-tone="danger">
+              <input type="hidden" name="_csrf" value="{{../csrfToken}}"><button class="btn btn--ghost btn--sm" type="submit">Cancel</button>
+            </form>{{/if}}</td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table></div>
+    {{else}}<div class="empty empty--sm">You have not requested any corrections.</div>{{/if}}
+  </div>
+</section>
+{{> app_shell_close}}

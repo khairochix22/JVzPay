@@ -1,0 +1,43 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header"><div><h1>Allowances, Loans &amp; Deductions</h1><p>Recurring items applied in every payroll period while active. New items need a supervisor's approval.</p></div>
+  {{#if (can "payitems.approve")}}<div class="page-actions"><a class="btn btn--secondary" href="/payroll/pay-items/review">Approval queue</a></div>{{/if}}</div>
+{{#if canSubmit}}
+<section class="card mb">
+  <div class="card__header"><h2>Add item</h2></div>
+  <form class="card__body" method="POST" action="/payroll/pay-items" novalidate>
+    <input type="hidden" name="_csrf" value="{{csrfToken}}">
+    {{#if errors.form}}<div class="alert alert--error" role="alert"><svg class="ic"><use href="#i-alert"/></svg><div>{{errors.form}}</div></div>{{/if}}
+    <div class="form-grid" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr))">
+      <div class="field"><label for="employee_id">Employee <span class="req">*</span></label><select class="select" id="employee_id" name="employee_id" {{#if errors.employee_id}}aria-invalid="true"{{/if}}><option value="">Select</option>{{#each employees}}<option value="{{id}}" {{selected id ../form.employee_id}}>{{name}} ({{employee_no}})</option>{{/each}}</select>{{#if errors.employee_id}}<span class="field__error">{{errors.employee_id}}</span>{{/if}}</div>
+      <div class="field"><label for="component_id">Component <span class="req">*</span></label><select class="select" id="component_id" name="component_id" {{#if errors.component_id}}aria-invalid="true"{{/if}}><option value="">Select</option>{{#each components}}<option value="{{id}}" {{selected id ../form.component_id}}>{{name}} ({{component_type}})</option>{{/each}}</select>{{#if errors.component_id}}<span class="field__error">{{errors.component_id}}</span>{{/if}}</div>
+      {{> field name="amount" label="Amount per period (₱)" required=true value=form.amount error=errors.amount inputmode="decimal"}}
+      {{> field name="remaining_balance" label="Total to recover (loans)" value=form.remaining_balance error=errors.remaining_balance inputmode="decimal" hint="Loans stop when fully paid."}}
+      {{> field name="effective_from" label="Effective from" type="date" required=true value=form.effective_from error=errors.effective_from}}
+      {{> field name="effective_to" label="Effective to" type="date" value=form.effective_to error=errors.effective_to}}
+      <div class="span-2">{{> field name="description" label="Description" value=form.description error=errors.description placeholder="Shown on the payslip"}}</div>
+    </div>
+    <div class="form-actions"><button class="btn btn--primary" type="submit">Submit for approval</button></div>
+  </form>
+</section>
+{{/if}}
+<section class="card">
+  <form class="toolbar" method="GET" action="/payroll/pay-items"><div class="input-group search"><svg class="ic"><use href="#i-search"/></svg><label class="sr-only" for="q">Search</label><input class="input" type="search" id="q" name="q" value="{{t.q}}" placeholder="Employee name or ID" data-autosubmit></div>
+    <select class="select" name="status" aria-label="Status" data-autosubmit>{{#each (array "all" "pending" "approved" "rejected" "ended")}}<option value="{{this}}" {{selected this ../status}}>{{humanize this}}</option>{{/each}}</select></form>
+  {{#if rows.length}}
+  <div class="table-wrap"><table class="table table--stack">
+    <thead><tr>{{sortTh meta "employee" "Employee"}}<th>Item</th><th class="text-right">Per period</th><th class="text-right">Balance</th>{{sortTh meta "from" "Effective"}}{{sortTh meta "status" "Status"}}<th class="actions"><span class="sr-only">Actions</span></th></tr></thead>
+    <tbody>{{#each rows}}<tr>
+      <td class="cell-primary"><strong>{{name}}</strong><br><span class="muted">{{employee_no}}</span></td>
+      <td data-label="Item"><div>{{component_name}}{{#if description}}<br><span class="muted">{{description}}</span>{{/if}}</div></td>
+      <td data-label="Per period" class="text-right num">{{money amount}}</td>
+      <td data-label="Balance" class="text-right num">{{#if remaining_balance}}{{money remaining_balance}}{{else}}—{{/if}}</td>
+      <td data-label="Effective" class="nowrap">{{date effective_from}}{{#if effective_to}} – {{date effective_to}}{{/if}}</td>
+      <td data-label="Status"><div>{{badge status}}{{#if decision_remarks}}<br><span class="muted" style="font-size:12px">“{{decision_remarks}}”</span>{{/if}}</div></td>
+      <td class="actions">{{#if (and ../canEnd (eq status "approved"))}}<form method="POST" action="/payroll/pay-items/{{id}}/end" data-confirm="End this recurring item today?" data-confirm-label="End item"><input type="hidden" name="_csrf" value="{{../csrfToken}}"><button class="btn btn--ghost btn--sm" type="submit">End</button></form>{{/if}}</td>
+    </tr>{{/each}}</tbody>
+  </table></div>
+  {{> pager meta=meta}}
+  {{else}}<div class="empty"><svg class="ic"><use href="#i-inbox"/></svg><strong>No pay items</strong>Allowances, loans and deductions appear here.</div>{{/if}}
+</section>
+{{> app_shell_close}}

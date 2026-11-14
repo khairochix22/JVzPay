@@ -1,0 +1,17 @@
+<section class="card">
+  <div class="card__header"><div><h2>Decision</h2><p>A reason is required to reject. The employee is notified either way.</p></div></div>
+  <div class="card__body">
+    {{#if error}}<div class="alert alert--error" role="alert"><svg class="ic"><use href="#i-alert"/></svg><div>{{error}}</div></div>{{/if}}
+    <form method="POST" action="{{action}}" novalidate>
+      <input type="hidden" name="_csrf" value="{{csrf}}">
+      <div class="field" style="margin-bottom:16px">
+        <label for="remarks">Remarks <span class="muted" style="font-weight:400">(required when rejecting)</span></label>
+        <textarea class="textarea" id="remarks" name="remarks" maxlength="500" placeholder="{{default placeholder "Add a note for the record"}}">{{remarks}}</textarea>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn--primary" type="submit" name="action" value="approve"><svg class="ic"><use href="#i-check"/></svg>{{default approveLabel "Approve"}}</button>
+        <button class="btn btn--danger" type="submit" name="action" value="reject"><svg class="ic"><use href="#i-x"/></svg>Reject</button>
+      </div>
+    </form>
+  </div>
+</section>

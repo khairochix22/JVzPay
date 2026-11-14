@@ -1,0 +1,16 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header"><div><h1>Roles &amp; Permissions</h1><p>Every page and action checks these grants on the server. Combinations that would let one person approve their own work are refused.</p></div></div>
+<form method="POST" action="/settings/roles" data-confirm="Save permission changes? They take effect within seconds for everyone signed in." data-confirm-label="Save">
+  <input type="hidden" name="_csrf" value="{{csrfToken}}">
+  {{#each modules}}
+  <section class="card mb"><div class="card__header"><h2>{{humanize name}}</h2></div>
+    <div class="table-wrap" style="margin-top:8px"><table class="table table--matrix">
+      <thead><tr><th>Permission</th>{{#each ../roles}}<th class="text-right">{{name}}</th>{{/each}}</tr></thead>
+      <tbody>{{#each items}}<tr><td class="matrix__perm"><strong>{{code}}</strong><br><span class="muted" style="font-size:12.5px">{{description}}</span></td>
+        {{#each cells}}<td class="text-right" data-label="{{roleName}}"><input class="matrix__check" type="checkbox" name="{{name}}" value="1" {{#if on}}checked{{/if}} aria-label="{{../code}} for {{roleName}}"></td>{{/each}}</tr>{{/each}}</tbody>
+    </table></div></section>
+  {{/each}}
+  <div class="form-actions" style="border-top:0"><button class="btn btn--primary" type="submit">Save permissions</button></div>
+</form>
+{{> app_shell_close}}

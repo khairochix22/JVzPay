@@ -1,0 +1,117 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><h1>My Bank Account</h1><p>The account your salary is credited to. Changes take effect only after an Accounting Supervisor approves them.</p></div>
+</div>
+
+<div class="grid grid--main-side mb">
+  <section class="card">
+    <div class="card__header"><h2>Current payroll account</h2>{{#if active}}{{badge "active"}}{{/if}}</div>
+    <div class="card__body">
+      {{#if active}}
+        <dl class="dl">
+          <dt>Bank</dt><dd>{{active.bank_name}}</dd>
+          <dt>Account holder</dt><dd>{{active.account_holder_name}}</dd>
+          <dt>Account number</dt><dd class="num">•••• •••• {{active.account_last4}}</dd>
+          <dt>Account type</dt><dd>{{humanize active.account_type}}</dd>
+          <dt>Approved</dt><dd>{{date active.approved_at}}</dd>
+        </dl>
+      {{else}}
+        <div class="empty empty--sm" style="text-align:left;padding:4px 0"><strong>No bank account enrolled yet</strong>Enroll an account so Payroll knows where to credit your salary.</div>
+      {{/if}}
+    </div>
+  </section>
+  <section class="card">
+    <div class="card__header"><h2>Request status</h2></div>
+    <div class="card__body">
+      {{#if pending}}
+        <p><strong>{{pending.request_no}}</strong> {{badge "pending"}}</p>
+        <p class="muted" style="margin:6px 0 14px">{{pending.bank_name}} · account ending {{pending.account_last4}} · submitted {{timeAgo pending.submitted_at}}</p>
+        <form method="POST" action="/my/bank/requests/{{pending.id}}/cancel" data-confirm="Cancel bank enrollment request {{pending.request_no}}?" data-confirm-label="Cancel request" data-confirm-tone="danger">
+          <input type="hidden" name="_csrf" value="{{csrfToken}}"><button class="btn btn--secondary btn--sm" type="submit">Cancel request</button>
+        </form>
+      {{else}}
+        <p class="muted" style="margin-bottom:14px">No pending request.</p>
+        <a class="btn btn--primary" href="/my/bank?new=1#enroll">{{#if active}}Change bank account{{else}}Enroll bank account{{/if}}</a>
+      {{/if}}
+    </div>
+  </section>
+</div>
+
+{{#if errors.form}}<div class="alert alert--error" role="alert"><svg class="ic"><use href="#i-alert"/></svg><div>{{errors.form}}</div></div>{{/if}}
+<div class="alert alert--info"><svg class="ic"><use href="#i-info"/></svg><div>Enrolling an account does <strong>not</strong> transfer money. It only tells Payroll which account to use. Your account number is encrypted and is never shown in full on screen.</div></div>
+
+{{#if showForm}}{{#unless pending}}
+<section class="card mb" id="enroll">
+  <div class="card__header"><div><h2>{{#if active}}Change bank account{{else}}Enroll a bank account{{/if}}</h2><p>Fields marked <span class="req">*</span> are required.</p></div></div>
+  <form class="card__body" method="POST" action="/my/bank/requests" enctype="multipart/form-data" novalidate autocomplete="off">
+    <input type="hidden" name="_csrf" value="{{csrfToken}}">
+    <div class="form-grid">
+      <div class="field">
+        <label for="bank_name">Bank / provider <span class="req">*</span></label>
+        <select class="select" id="bank_name" name="bank_name" required data-bank-select {{#if errors.bank_name}}aria-invalid="true"{{/if}}>
+          <option value="">Select bank</option>
+          {{#each banks}}<option value="{{this}}" {{selected this ../form.bank_name}}>{{this}}</option>{{/each}}
+        </select>
+        {{#if errors.bank_name}}<span class="field__error">{{errors.bank_name}}</span>{{/if}}
+      </div>
+      <div class="field" data-bank-other>
+        <label for="bank_name_other">Bank name (if Other)</label>
+        <input class="input" id="bank_name_other" name="bank_name_other" value="{{form.bank_name_other}}" maxlength="100" {{#if errors.bank_name_other}}aria-invalid="true"{{/if}}>
+        {{#if errors.bank_name_other}}<span class="field__error">{{errors.bank_name_other}}</span>{{/if}}
+      </div>
+      <div class="field">
+        <label for="account_type">Account type <span class="req">*</span></label>
+        <select class="select" id="account_type" name="account_type" required>
+          {{#each types}}<option value="{{this}}" {{selected this ../form.account_type}}>{{humanize this}}</option>{{/each}}
+        </select>
+        {{#if errors.account_type}}<span class="field__error">{{errors.account_type}}</span>{{/if}}
+      </div>
+      {{> field name="account_holder_name" label="Account holder name" required=true value=form.account_holder_name error=errors.account_holder_name hint="Exactly as it appears on your passbook or bank record."}}
+      <div class="field">
+        <label for="account_number">Account number <span class="req">*</span></label>
+        <input class="input num" id="account_number" name="account_number" data-mask="digits" inputmode="numeric" autocomplete="off" required maxlength="40" placeholder="Digits only" {{#if errors.account_number}}aria-invalid="true"{{/if}}>
+        <span class="field__hint">For GCash / Maya use your 11-digit mobile number (09…).</span>
+        {{#if errors.account_number}}<span class="field__error">{{errors.account_number}}</span>{{/if}}
+      </div>
+      <div class="field">
+        <label for="account_number_confirm">Confirm account number <span class="req">*</span></label>
+        <input class="input num" id="account_number_confirm" name="account_number_confirm" data-mask="digits" inputmode="numeric" autocomplete="off" required maxlength="40" {{#if errors.account_number_confirm}}aria-invalid="true"{{/if}}>
+        {{#if errors.account_number_confirm}}<span class="field__error">{{errors.account_number_confirm}}</span>{{/if}}
+      </div>
+      <div class="field span-2">
+        <label for="attachment">Proof of account <span class="muted" style="font-weight:400">(required if the holder name differs from your employee record)</span></label>
+        <input class="input" type="file" id="attachment" name="attachment" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" {{#if errors.attachment}}aria-invalid="true"{{/if}}>
+        <span class="field__hint">Photo of passbook, ATM card back, or bank certificate. PDF, JPG or PNG up to 5 MB.</span>
+        {{#if errors.attachment}}<span class="field__error">{{errors.attachment}}</span>{{/if}}
+      </div>
+    </div>
+    {{#if cleared}}<p class="field__hint" style="margin-top:12px"><svg class="ic ic--sm" style="vertical-align:-3px"><use href="#i-lock"/></svg> For your security the account number fields were cleared. Please enter them again.</p>{{/if}}
+    <div class="form-actions"><a class="btn btn--secondary" href="/my/bank">Cancel</a><button type="submit" class="btn btn--primary">Submit for approval</button></div>
+  </form>
+</section>
+{{/unless}}{{/if}}
+
+<section class="card">
+  <div class="card__header"><div><h2>Enrollment history</h2><p>Every request is kept, including rejected ones and their reasons</p></div></div>
+  <div class="card__body card__body--flush" style="padding-top:8px">
+    {{#if requests.length}}
+    <div class="table-wrap"><table data-table-tools class="table table--stack">
+      <thead><tr><th>Request</th><th>Type</th><th>Bank</th><th>Status</th><th>Decision</th></tr></thead>
+      <tbody>
+        {{#each requests}}
+        <tr>
+          <td class="cell-primary"><strong>{{request_no}}</strong><br><span class="muted">Submitted {{date submitted_at}}</span></td>
+          <td data-label="Type">{{humanize request_type}}</td>
+          <td data-label="Bank"><div>{{bank_name}}<br><span class="muted">•••• {{account_last4}} · {{humanize account_type}}</span></div></td>
+          <td data-label="Status">{{badge status}}</td>
+          <td data-label="Decision"><div>{{#if decided_at}}{{decided_by_name}} · {{date decided_at}}{{#if decision_remarks}}<br><span class="muted">“{{decision_remarks}}”</span>{{/if}}{{else if (eq status "pending")}}<span class="muted">Awaiting review</span>{{else}}—{{/if}}</div></td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table></div>
+    {{else}}<div class="empty empty--sm">No enrollment requests yet.</div>{{/if}}
+  </div>
+</section>
+<script src="/js/self-service.js"></script>
+{{> app_shell_close}}

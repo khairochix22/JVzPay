@@ -1,0 +1,121 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><h1>My Leave</h1><p>Leave credits for {{year}} and your applications.</p></div>
+  <div class="page-actions"><a class="btn btn--primary" href="#apply"><svg class="ic"><use href="#i-plus"/></svg>Apply for leave</a></div>
+</div>
+
+<div class="tile-grid mb">
+  {{#each credits}}
+  <div class="tile">
+    <div style="display:flex;justify-content:space-between;align-items:center"><strong>{{name}}</strong>{{#unless is_paid}}<span class="badge badge--neutral">Unpaid</span>{{/unless}}</div>
+    {{#if allow_negative_balance}}
+      <div class="tile__value">{{fixed used_days 1}} <span style="font-size:14px;font-weight:500" class="muted">days used</span></div>
+      <div class="kpi__hint">No fixed limit{{#if (gt pending_days 0)}} · {{fixed pending_days 1}} pending{{/if}}</div>
+    {{else}}
+      <div class="tile__value">{{fixed remaining 1}} <span style="font-size:14px;font-weight:500" class="muted">of {{fixed total 1}} days left</span></div>
+      <div class="meter {{#if (lt pct 25)}}meter--warning{{/if}}" role="img" aria-label="{{name}}: {{fixed remaining 1}} of {{fixed total 1}} days remaining"><span style="width:{{this.pct}}%"></span></div>
+      <div class="kpi__hint">Used {{fixed used_days 1}}{{#if (gt pending_days 0)}} · {{fixed pending_days 1}} reserved by pending applications{{/if}}</div>
+    {{/if}}
+  </div>
+  {{else}}
+  <div class="card empty"><svg class="ic"><use href="#i-calendar"/></svg><strong>No leave types are configured</strong>Ask the administrator to set up leave types.</div>
+  {{/each}}
+</div>
+
+<section class="card mb" id="conversion">
+  <div class="card__header"><div><h2>Convert unused vacation leave to cash</h2><p>You get 10 days of vacation leave every year; the balance resets to 10 every 1 January. Whatever is left can be converted to cash from 1 December to 31 January and is paid, tax-free, in your next payroll.</p></div></div>
+  <div class="card__body">
+    {{#if conversion.offer}}
+      {{#if conversion.offer.days}}
+      <form method="POST" action="/my/leave/conversion" class="page-actions" style="justify-content:space-between;flex-wrap:wrap">
+        <input type="hidden" name="_csrf" value="{{csrfToken}}">
+        <div><strong>{{fixed conversion.offer.days 1}} day(s)</strong> of {{conversion.offer.year}} {{conversion.offer.type}} × {{money conversion.offer.dailyRate}} = <strong>{{money conversion.offer.amount}}</strong></div>
+        <button class="btn btn--primary" type="submit"><svg class="ic"><use href="#i-wallet"/></svg>Convert to cash</button>
+      </form>
+      {{else}}<p class="muted">You have no unused vacation leave left for {{conversion.offer.year}}.</p>{{/if}}
+    {{else}}
+      {{#unless conversion.year}}<p class="muted">Conversion opens on 1 December.</p>{{/unless}}
+    {{/if}}
+    {{#if conversion.history.length}}
+    <div class="table-wrap"><table class="table table--stack"><thead><tr><th>Request</th><th class="text-right">Days</th><th class="text-right">Amount</th><th>Status</th><th class="actions"><span class="sr-only">Actions</span></th></tr></thead><tbody>
+    {{#each conversion.history}}<tr><td class="cell-primary"><strong>{{conversion_no}}</strong><br><span class="muted">{{type_name}} {{year}} · {{date requested_at}}</span></td>
+      <td data-label="Days" class="text-right num">{{fixed days 1}}</td><td data-label="Amount" class="text-right num">{{money amount}}</td>
+      <td data-label="Status">{{badge status}}{{> sup_step}}{{#if decision_remarks}}<br><span class="muted">“{{decision_remarks}}”</span>{{/if}}</td>
+      <td class="actions">{{#if (eq status "pending")}}<form method="POST" action="/my/leave/conversion/{{id}}/cancel"><input type="hidden" name="_csrf" value="{{../csrfToken}}"><button class="btn btn--secondary btn--sm" type="submit">Cancel</button></form>{{/if}}</td></tr>{{/each}}
+    </tbody></table></div>
+    {{/if}}
+  </div>
+</section>
+
+<section class="card mb" id="apply">
+  <div class="card__header"><div><h2>Apply for leave</h2><p>Working days are counted automatically (rest days and holidays are excluded). Days are reserved from your balance until a decision is made.</p></div></div>
+  <form class="card__body" method="POST" action="/my/leave/applications" enctype="multipart/form-data" novalidate>
+    <input type="hidden" name="_csrf" value="{{csrfToken}}">
+    {{#if errors.form}}<div class="alert alert--error" role="alert"><svg class="ic"><use href="#i-alert"/></svg><div>{{errors.form}}</div></div>{{/if}}
+    <div class="form-grid">
+      <div class="field span-2">
+        <label for="leave_type_id">Leave type <span class="req">*</span></label>
+        <select class="select" id="leave_type_id" name="leave_type_id" required {{#if errors.leave_type_id}}aria-invalid="true"{{/if}}>
+          <option value="">Select leave type</option>
+          {{#each types}}<option value="{{id}}" {{selected id ../form.leave_type_id}}>{{name}}{{#unless is_paid}} (unpaid){{/unless}}{{#if requires_attachment}} — document required{{#if attachment_after_days}} beyond {{fixed attachment_after_days 0}} days{{/if}}{{/if}}</option>{{/each}}
+        </select>
+        {{#if errors.leave_type_id}}<span class="field__error">{{errors.leave_type_id}}</span>{{/if}}
+      </div>
+      <div class="field">
+        <label for="start_date">Start date <span class="req">*</span></label>
+        <input class="input" type="date" id="start_date" name="start_date" value="{{form.start_date}}" required {{#if errors.start_date}}aria-invalid="true"{{/if}}>
+        {{#if errors.start_date}}<span class="field__error">{{errors.start_date}}</span>{{/if}}
+      </div>
+      <div class="field">
+        <label for="end_date">End date <span class="req">*</span></label>
+        <input class="input" type="date" id="end_date" name="end_date" value="{{form.end_date}}" required {{#if errors.end_date}}aria-invalid="true"{{/if}}>
+        {{#if errors.end_date}}<span class="field__error">{{errors.end_date}}</span>{{/if}}
+      </div>
+      <div class="field span-2">
+        <label class="check"><input type="checkbox" name="half_day" value="1" {{checked form.half_day 1}}> Half day only (single-day leave)</label>
+        {{#if errors.half_day}}<span class="field__error">{{errors.half_day}}</span>{{/if}}
+      </div>
+      <div class="field span-2">
+        <label for="reason">Reason <span class="req">*</span></label>
+        <textarea class="textarea" id="reason" name="reason" maxlength="500" required placeholder="Briefly describe the reason for your leave." {{#if errors.reason}}aria-invalid="true"{{/if}}>{{form.reason}}</textarea>
+        {{#if errors.reason}}<span class="field__error">{{errors.reason}}</span>{{/if}}
+      </div>
+      <div class="field span-2">
+        <label for="attachment">Supporting document</label>
+        <input class="input" type="file" id="attachment" name="attachment" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
+        <span class="field__hint">e.g. medical certificate. PDF, JPG or PNG up to 5 MB. Required for some leave types (see the list above).</span>
+        {{#if errors.attachment}}<span class="field__error">{{errors.attachment}}</span>{{/if}}
+      </div>
+    </div>
+    <div class="form-actions"><button type="submit" class="btn btn--primary">Submit application</button></div>
+  </form>
+</section>
+
+<section class="card">
+  <div class="card__header"><div><h2>My applications</h2><p>Latest 50</p></div></div>
+  <div class="card__body card__body--flush" style="padding-top:8px">
+    {{#if applications.length}}
+    <div class="table-wrap"><table data-table-tools class="table table--stack">
+      <thead><tr><th>Application</th><th>Type</th><th>Dates</th><th class="text-right">Days</th><th>Status</th><th>Decision</th><th class="actions"><span class="sr-only">Actions</span></th></tr></thead>
+      <tbody>
+        {{#each applications}}
+        <tr>
+          <td class="cell-primary"><strong>{{application_no}}</strong><br><span class="muted">Filed {{date submitted_at}}{{#if attachment_id}} · <a href="/documents/{{attachment_id}}">{{attachment_name}}</a>{{/if}}</span></td>
+          <td data-label="Type">{{type_name}}</td>
+          <td data-label="Dates" class="nowrap"><div>{{date start_date}}{{#if (ne start_date end_date)}} – {{date end_date}}{{/if}}</div></td>
+          <td data-label="Days" class="text-right num">{{fixed days 1}}</td>
+          <td data-label="Status">{{badge status}}{{> sup_step}}</td>
+          <td data-label="Decision"><div>{{#if decided_at}}{{decided_by_name}} · {{date decided_at}}{{#if decision_remarks}}<br><span class="muted">“{{decision_remarks}}”</span>{{/if}}{{else if (eq status "pending")}}<span class="muted">Awaiting review</span>{{else}}—{{/if}}</div></td>
+          <td class="actions">{{#if (eq status "pending")}}
+            <form method="POST" action="/my/leave/applications/{{id}}/cancel" data-confirm="Cancel leave application {{application_no}}? The reserved days will be returned to your balance." data-confirm-label="Cancel application" data-confirm-tone="danger">
+              <input type="hidden" name="_csrf" value="{{../csrfToken}}"><button class="btn btn--ghost btn--sm" type="submit">Cancel</button>
+            </form>{{/if}}</td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table></div>
+    {{else}}<div class="empty empty--sm">You have not filed any leave applications.</div>{{/if}}
+  </div>
+</section>
+{{> app_shell_close}}

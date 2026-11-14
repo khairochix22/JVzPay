@@ -1,0 +1,19 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><h1>Work Schedules</h1><p>Schedules are plotted by HR, day by day, and arrive through the integration. Days HR has not plotted follow the company default from System Settings.</p></div>
+  <div class="page-actions"><a class="btn btn--secondary" href="/attendance/schedules?week={{prev}}&amp;q={{q}}" aria-label="Previous week"><svg class="ic"><use href="#i-chevron-left"/></svg></a><a class="btn btn--secondary" href="/attendance/schedules">This week</a><a class="btn btn--secondary" href="/attendance/schedules?week={{next}}&amp;q={{q}}" aria-label="Next week"><svg class="ic"><use href="#i-chevron-right"/></svg></a></div>
+</div>
+
+<section class="card">
+  <div class="card__header"><div><h2>{{label}}</h2></div>
+    <form method="GET" action="/attendance/schedules" class="page-actions"><input type="hidden" name="week" value="{{monday}}"><input class="input" type="search" name="q" value="{{q}}" placeholder="Search name or ID" aria-label="Search"><button class="btn btn--secondary" type="submit">Search</button></form></div>
+  <div class="card__body card__body--flush">
+    {{#if rows.length}}<div class="table-wrap"><table class="table roster"><thead><tr><th>Employee</th>{{#each days}}<th>{{short}} {{dayNo}}</th>{{/each}}</tr></thead><tbody>
+    {{#each rows}}<tr><td class="cell-primary"><strong>{{name}}</strong><br><span class="muted">{{employee_no}} · {{department}}</span>{{#unless plotted}}<br><span class="badge badge--neutral">Default</span>{{/unless}}</td>
+      {{#each days}}<td class="roster__cell{{#if dayOff}} roster__cell--off{{/if}}">{{#if dayOff}}<span class="muted">Off</span>{{else}}<span class="num">{{shift_start}}–{{shift_end}}</span><br><span class="muted roster__small">Lunch {{lunch_start}}</span>{{/if}}{{#if (eq source "hr")}}<span class="sr-only"> (plotted by HR)</span>{{/if}}</td>{{/each}}</tr>{{/each}}
+    </tbody></table></div>
+    {{else}}<div class="empty empty--sm"><svg class="ic"><use href="#i-calendar"/></svg><strong>No active employees{{#if q}} match “{{q}}”{{/if}}</strong></div>{{/if}}
+  </div>
+</section>
+{{> app_shell_close}}

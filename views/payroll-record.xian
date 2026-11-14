@@ -1,0 +1,28 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><div class="breadcrumb"><a href="/payroll">Payroll</a> / <a href="/payroll/batches/{{r.batch_id}}">{{r.batch_no}}</a></div>
+    <h1>{{r.employee_name}} &nbsp;{{badge r.status}}</h1><p>{{r.employee_no}} · {{r.position_title}} · {{r.department_name}} · {{r.period_label}}</p></div>
+</div>
+{{#if r.warnings.length}}<div class="alert alert--warning"><svg class="ic"><use href="#i-alert"/></svg><div>{{#each r.warnings}}<div>{{this}}</div>{{/each}}</div></div>{{/if}}
+<div class="grid grid--kpi">
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-calendar"/></svg></div><div><div class="kpi__label">Days paid</div><div class="kpi__value">{{r.days_worked}}</div><div class="kpi__hint">{{r.days_absent}} absent · {{r.late_minutes}} late min · {{r.undertime_minutes}} UT min · {{r.overbreak_minutes}} lost min</div></div></div>
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-wallet"/></svg></div><div><div class="kpi__label">Gross pay</div><div class="kpi__value">{{money r.gross_pay}}</div><div class="kpi__hint">Rate {{money r.rate_amount}} ({{r.rate_basis}})</div></div></div>
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-receipt"/></svg></div><div><div class="kpi__label">Total deductions</div><div class="kpi__value">{{money r.total_deductions}}</div></div></div>
+  <div class="kpi kpi--success"><div class="kpi__icon"><svg class="ic"><use href="#i-check-circle"/></svg></div><div><div class="kpi__label">Net pay</div><div class="kpi__value">{{money r.net_pay}}</div></div></div>
+</div>
+<div class="grid grid--2 mb">
+  <section class="card"><div class="card__header"><h2>Earnings</h2></div><div class="card__body"><table class="viz-table"><tbody>
+    {{#each r.earnings}}<tr><td>{{description}}</td><td class="v">{{money amount}}</td></tr>{{/each}}
+    <tr><th>Gross pay</th><th class="v">{{money r.gross_pay}}</th></tr></tbody></table></div></section>
+  <section class="card"><div class="card__header"><h2>Deductions</h2></div><div class="card__body"><table class="viz-table"><tbody>
+    {{#each r.deductions}}<tr><td>{{description}}</td><td class="v">{{money amount}}</td></tr>{{else}}<tr><td class="muted">None</td><td class="v">—</td></tr>{{/each}}
+    <tr><th>Total deductions</th><th class="v">{{money r.total_deductions}}</th></tr></tbody></table></div></section>
+</div>
+<div class="grid grid--2">
+  <section class="card"><div class="card__header"><div><h2>Contributions</h2><p>Employer share is a company expense</p></div></div><div class="card__body"><table class="viz-table">
+    <thead><tr><th>Agency</th><th class="v">Basis</th><th class="v">Employee</th><th class="v">Employer</th><th class="v">EC</th></tr></thead><tbody>
+    {{#each r.contributions}}<tr><td>{{agency}}</td><td class="v">{{money base_amount}}</td><td class="v">{{money employee_share}}</td><td class="v">{{money employer_share}}</td><td class="v">{{money ec_share}}</td></tr>{{else}}<tr><td colspan="5" class="muted">None this period</td></tr>{{/each}}</tbody></table></div></section>
+  <section class="card"><div class="card__header"><div><h2>How this was computed</h2></div></div><div class="card__body card__body--flush"><ul class="list">{{#each r.notes}}<li class="list__item"><span class="dot"></span><div class="list__body"><small>{{this}}</small></div></li>{{/each}}</ul></div></section>
+</div>
+{{> app_shell_close}}

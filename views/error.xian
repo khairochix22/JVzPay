@@ -1,0 +1,23 @@
+{{> app_head}}
+{{#if layoutBare}}
+<main class="error-page">
+  <div>
+    <div class="code">{{code}}</div>
+    <h1 style="margin:10px 0 6px">{{title}}</h1>
+    <p class="muted" style="max-width:440px;margin:0 auto 22px">{{message}}</p>
+    <a class="btn btn--primary" href="/login">Go to sign in</a>
+  </div>
+</main>
+<script src="/js/app.js"></script></body></html>
+{{else}}
+{{> app_shell_open}}
+<div class="error-page">
+  <div>
+    <div class="code">{{code}}</div>
+    <h1 style="margin:10px 0 6px">{{title}}</h1>
+    <p class="muted" style="max-width:480px;margin:0 auto 22px">{{message}}</p>
+    <a class="btn btn--primary" href="/dashboard">Back to dashboard</a>
+  </div>
+</div>
+{{> app_shell_close}}
+{{/if}}

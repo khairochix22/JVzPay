@@ -1,0 +1,35 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><h1>Budgets {{year}}</h1><p>Monthly budgets per account compared with posted actuals. Expenses show what is left; revenue shows how far above or below target.</p></div>
+  <div class="page-actions"><a class="btn btn--secondary" href="/accounting/budgets?year={{prev}}">{{prev}}</a><a class="btn btn--secondary" href="/accounting/budgets?year={{next}}">{{next}}</a></div>
+</div>
+
+{{#if canEdit}}
+<section class="card mb">
+  <div class="card__header"><div><h2>{{#if editing}}Budget for {{editing.code}} · {{editing.name}}{{else}}Set a budget{{/if}}</h2></div></div>
+  <div class="card__body">
+    {{#if editing}}
+    <form method="POST" action="/accounting/budgets" novalidate>
+      <input type="hidden" name="_csrf" value="{{csrfToken}}"><input type="hidden" name="year" value="{{year}}"><input type="hidden" name="account_id" value="{{editing.id}}">
+      <div class="form-grid" style="grid-template-columns:repeat(auto-fill,minmax(110px,1fr))">
+        {{#each editing.months}}<div class="field"><label for="m{{@index}}">{{label}}</label><input class="input" id="m{{@index}}" name="month_{{month}}" value="{{budget}}" inputmode="decimal" placeholder="—"></div>{{/each}}
+      </div>
+      <div class="form-actions"><a class="btn btn--secondary" href="/accounting/budgets?year={{year}}">Cancel</a><button class="btn btn--primary" type="submit">Save budget</button></div>
+    </form>
+    {{else}}
+    <form method="GET" action="/accounting/budgets" class="page-actions"><input type="hidden" name="year" value="{{year}}"><select class="select" name="edit" aria-label="Account" required><option value="">Choose an account</option>{{#each accounts}}<option value="{{id}}">{{code}} · {{name}}</option>{{/each}}</select><button class="btn btn--primary" type="submit">Set its budget</button></form>
+    {{/if}}
+  </div>
+</section>
+{{/if}}
+
+<section class="card">
+  <div class="table-wrap"><table class="table table--stack"><thead><tr><th>Account</th><th class="text-right">Budget</th><th class="text-right">Actual (budgeted months)</th><th class="text-right">Actual (year)</th><th class="text-right">Variance</th><th>Used</th>{{#if canEdit}}<th class="actions"><span class="sr-only">Edit</span></th>{{/if}}</tr></thead><tbody>
+  {{#each rows}}<tr><td class="cell-primary"><strong>{{code}} · {{name}}</strong><br><span class="muted">{{humanize account_type}}</span></td><td data-label="Budget" class="text-right num">{{#if hasBudget}}{{money budget}}{{else}}—{{/if}}</td><td data-label="Actual (budgeted months)" class="text-right num">{{#if hasBudget}}{{money budgetedActual}}{{else}}—{{/if}}</td><td data-label="Actual (year)" class="text-right num">{{money actual}}</td><td data-label="Variance" class="text-right num">{{#if hasBudget}}{{money variance}}{{else}}—{{/if}}</td>
+    <td data-label="Used" style="min-width:140px">{{#if used}}<div class="meter {{#if over}}meter--danger{{/if}}" role="img" aria-label="{{used}}% of budget"><span style="width:{{#if (gt used 100)}}100{{else}}{{used}}{{/if}}%"></span></div><small class="muted">{{used}}%</small>{{else}}—{{/if}}</td>
+    {{#if ../canEdit}}<td class="actions"><a class="btn btn--secondary btn--sm" href="/accounting/budgets?year={{../year}}&edit={{id}}">Edit</a></td>{{/if}}</tr>
+  {{else}}<tr><td colspan="7"><div class="empty empty--sm"><svg class="ic"><use href="#i-calculator"/></svg><strong>No budgets or activity for {{year}}</strong></div></td></tr>{{/each}}
+  </tbody></table></div>
+</section>
+{{> app_shell_close}}

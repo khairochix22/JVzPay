@@ -1,0 +1,84 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><div class="breadcrumb"><a href="/bank-enrollments">Bank Enrollments</a> / {{q.request_no}}</div>
+    <h1>{{q.name}}</h1><p>{{q.employee_no}} · {{q.position}} · {{q.department}} &nbsp; {{badge q.status}}</p></div>
+</div>
+
+{{#if own}}<div class="alert alert--warning"><svg class="ic"><use href="#i-alert"/></svg><div>This is your own request. Another Accounting Supervisor must review it (separation of duties).</div></div>{{/if}}
+
+<div class="grid grid--main-side">
+  <div class="grid" style="align-content:start">
+    <section class="card">
+      <div class="card__header"><div><h2>Requested account</h2><p>{{humanize q.request_type}} enrollment · submitted {{datetime q.submitted_at}} by {{q.submitted_by_name}}</p></div></div>
+      <div class="card__body">
+        <dl class="dl">
+          <dt>Bank / provider</dt><dd>{{q.bank_name}}</dd>
+          <dt>Account type</dt><dd>{{humanize q.account_type}}</dd>
+          <dt>Account holder</dt><dd>{{q.account_holder_name}} {{#if q.nameMatches}}<span class="badge badge--success">Matches employee record</span>{{else}}<span class="badge badge--warning">Differs from employee record</span>{{/if}}</dd>
+          <dt>Account number</dt>
+          <dd class="num">
+            {{#if revealed}}<strong style="letter-spacing:.5px">{{revealed}}</strong> <span class="muted" style="font-size:12px">(this view was logged)</span>
+            {{else}}{{q.masked}}
+              {{#if (and (eq q.status "pending") (not own))}}
+              <form method="POST" action="/bank-enrollments/{{q.id}}/reveal" style="display:inline" data-confirm="Show the full account number to verify it against the supporting document? This action is recorded in the audit log." data-confirm-label="Show number">
+                <input type="hidden" name="_csrf" value="{{csrfToken}}"><button class="btn btn--ghost btn--sm" type="submit">Reveal for verification</button>
+              </form>
+              {{/if}}
+            {{/if}}
+          </dd>
+          <dt>Supporting document</dt>
+          <dd>{{#if q.attachment_id}}<a href="/documents/{{q.attachment_id}}" target="_blank" rel="noopener">{{q.attachment_name}}</a>{{else}}<span class="muted">None attached</span>{{/if}}</dd>
+        </dl>
+      </div>
+    </section>
+
+    {{#if (eq q.status "pending")}}{{#unless own}}
+    <section class="card">
+      <div class="card__header"><div><h2>Decision</h2><p>A reason is required to reject. The employee is notified either way.</p></div></div>
+      <div class="card__body">
+        {{#if errors.decision}}<div class="alert alert--error" role="alert"><svg class="ic"><use href="#i-alert"/></svg><div>{{errors.decision}}</div></div>{{/if}}
+        <form method="POST" action="/bank-enrollments/{{q.id}}/decision" id="decision-form" novalidate>
+          <input type="hidden" name="_csrf" value="{{csrfToken}}">
+          <div class="field" style="margin-bottom:16px">
+            <label for="remarks">Remarks <span class="muted" style="font-weight:400">(required when rejecting)</span></label>
+            <textarea class="textarea" id="remarks" name="remarks" maxlength="500" placeholder="e.g. Verified against passbook photo.">{{remarks}}</textarea>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn btn--primary" type="submit" name="action" value="approve"><svg class="ic"><use href="#i-check"/></svg>Approve account</button>
+            <button class="btn btn--danger" type="submit" name="action" value="reject"><svg class="ic"><use href="#i-x"/></svg>Reject</button>
+          </div>
+        </form>
+      </div>
+    </section>
+    {{/unless}}{{else}}
+    <section class="card">
+      <div class="card__header"><h2>Decision</h2></div>
+      <div class="card__body">
+        {{#if q.decided_at}}<p>{{badge q.status}} by <strong>{{q.decided_by_name}}</strong> on {{datetime q.decided_at}}</p>{{#if q.decision_remarks}}<p class="muted" style="margin-top:8px">“{{q.decision_remarks}}”</p>{{/if}}
+        {{else}}<p class="muted">This request was {{q.status}} by the employee.</p>{{/if}}
+      </div>
+    </section>
+    {{/if}}
+  </div>
+
+  <div class="grid" style="align-content:start">
+    <section class="card">
+      <div class="card__header"><h2>Current payroll account</h2></div>
+      <div class="card__body">
+        {{#if q.current}}
+          <dl class="dl" style="grid-template-columns:100px 1fr"><dt>Bank</dt><dd>{{q.current.bank_name}}</dd><dt>Account</dt><dd class="num">•••• {{q.current.account_last4}}</dd><dt>Type</dt><dd>{{humanize q.current.account_type}}</dd><dt>Since</dt><dd>{{date q.current.approved_at}}</dd></dl>
+          {{#if (eq q.status "pending")}}<p class="field__hint" style="margin-top:12px">Approving replaces this account; it is kept in history as superseded.</p>{{/if}}
+        {{else}}<p class="muted">No active payroll account — this would be the first.</p>{{/if}}
+      </div>
+    </section>
+    <section class="card">
+      <div class="card__header"><h2>Decision log</h2></div>
+      <div class="card__body card__body--flush">
+        {{#if q.approvals.length}}<ul class="list">{{#each q.approvals}}<li class="list__item"><span class="dot"></span><div class="list__body"><strong>{{humanize action}}</strong><small>{{full_name}} ({{humanize actor_role}}) · {{datetime decided_at}}{{#if remarks}}<br>“{{remarks}}”{{/if}}</small></div></li>{{/each}}</ul>
+        {{else}}<div class="empty empty--sm">No decisions recorded yet.</div>{{/if}}
+      </div>
+    </section>
+  </div>
+</div>
+{{> app_shell_close}}

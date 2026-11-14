@@ -1,0 +1,21 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><h1>Employee Registrations</h1><p>Accounts created by new hires at <code>/register/employee</code>. Each one was matched against HR's record and opens only the employee's own department.</p></div>
+</div>
+<section class="card">
+  <div class="card__body card__body--flush">
+    {{#if rows.length}}<div class="table-wrap"><table class="table table--stack" data-table-tools><thead><tr><th>Employee</th><th>Department / position</th><th>Email</th><th>Access</th><th>Checked with</th><th>Registered</th></tr></thead><tbody>
+    {{#each rows}}<tr>
+      <td class="cell-primary"><strong>{{full_name}}</strong><br><span class="muted">{{employee_no}}</span></td>
+      <td data-label="Department">{{department_name}}<br><span class="muted">{{position_title}}</span></td>
+      <td data-label="Email">{{email}}</td>
+      <td data-label="Access">{{#if (eq department_name "Payroll/Accounting")}}JVzPay · {{role_name}}{{else}}{{department_name}} application · Self-Service in JVzPay{{/if}}</td>
+      <td data-label="Checked with">{{#if (eq hr_check "hr_api")}}HR system{{else}}HR-synchronised record{{/if}}</td>
+      <td data-label="Registered" class="nowrap">{{datetime created_at}}</td>
+    </tr>{{/each}}
+    </tbody></table></div>
+    {{else}}<div class="empty"><svg class="ic"><use href="#i-user-plus"/></svg><strong>No registrations yet</strong>New hires register at /register/employee after HR has sent their record.</div>{{/if}}
+  </div>
+</section>
+{{> app_shell_close}}

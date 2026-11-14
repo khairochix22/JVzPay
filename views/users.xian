@@ -1,0 +1,37 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><h1>User Accounts</h1><p>Who can sign in, with which role, and which employee record they are linked to. Employee records come from HR; accounting staff ask for their own accounts.</p></div>
+  <div class="page-actions"><a class="btn btn--primary" href="/users/requests"><svg class="ic"><use href="#i-inbox"/></svg>Account requests</a></div>
+</div>
+<section class="card">
+  <form class="toolbar" method="GET" action="/users" role="search">
+    <div class="input-group search"><svg class="ic"><use href="#i-search"/></svg><label class="sr-only" for="q">Search users</label>
+      <input class="input" type="search" id="q" name="q" value="{{t.q}}" placeholder="Search name or email" data-autosubmit></div>
+    <label class="sr-only" for="f-role">Role</label>
+    <select class="select" id="f-role" name="role" data-autosubmit>
+      <option value="">All roles</option>
+      {{#each roles}}<option value="{{code}}" {{selected code ../role}}>{{name}}</option>{{/each}}
+    </select>
+    <input type="hidden" name="sort" value="{{t.sort}}"><input type="hidden" name="dir" value="{{t.dir}}">
+  </form>
+  {{#if rows.length}}
+  <div class="table-wrap"><table class="table table--stack">
+    <thead><tr>{{sortTh meta "name" "User"}}{{sortTh meta "role" "Role"}}<th>Employee</th>{{sortTh meta "status" "Status"}}{{sortTh meta "login" "Last sign-in"}}<th class="actions"><span class="sr-only">Actions</span></th></tr></thead>
+    <tbody>
+      {{#each rows}}
+      <tr>
+        <td class="cell-primary"><div class="person"><span class="avatar">{{initials full_name}}</span><div><strong>{{full_name}}</strong><span>{{email}}</span></div></div></td>
+        <td data-label="Role">{{role_name}}</td>
+        <td data-label="Employee">{{#if employee_no}}{{employee_no}}{{else}}<span class="muted">Not linked</span>{{/if}}</td>
+        <td data-label="Status"><div>{{#if is_locked}}{{badge "locked"}}{{else}}{{badge status}}{{/if}}{{#if must_change_password}} <span class="muted" style="font-size:12px">temp. password</span>{{/if}}</div></td>
+        <td data-label="Last sign-in" class="nowrap">{{#if last_login_at}}{{timeAgo last_login_at}}{{else}}<span class="muted">Never</span>{{/if}}</td>
+        <td class="actions"><a class="btn btn--secondary btn--sm" href="/users/{{id}}/edit">Manage</a></td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table></div>
+  {{> pager meta=meta}}
+  {{else}}<div class="empty"><svg class="ic"><use href="#i-key"/></svg><strong>No accounts match</strong>Try a different search.</div>{{/if}}
+</section>
+{{> app_shell_close}}

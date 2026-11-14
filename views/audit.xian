@@ -1,0 +1,46 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><h1>Audit Logs</h1><p>{{#if full}}Every recorded action in the system.{{else}}Payroll-related history (payroll, attendance, leave, bank).{{/if}} This log is append-only; entries cannot be edited or deleted.</p></div>
+</div>
+<section class="card">
+  <form class="toolbar" method="GET" action="/audit" role="search">
+    <div class="input-group search"><svg class="ic"><use href="#i-search"/></svg><label class="sr-only" for="q">Search</label>
+      <input class="input" type="search" id="q" name="q" value="{{t.q}}" placeholder="Action, user, record ID or remark" data-autosubmit></div>
+    <label class="sr-only" for="f-module">Module</label>
+    <select class="select" id="f-module" name="module" data-autosubmit>
+      <option value="">All modules</option>
+      {{#each modules}}<option value="{{this}}" {{selected this ../module}}>{{humanize this}}</option>{{/each}}
+    </select>
+    <label class="sr-only" for="from">From</label><input class="input" style="width:auto" type="date" id="from" name="from" value="{{from}}" aria-label="From date">
+    <label class="sr-only" for="to">To</label><input class="input" style="width:auto" type="date" id="to" name="to" value="{{to}}" aria-label="To date">
+    <button class="btn btn--secondary" type="submit">Apply</button>
+    {{#if (or t.q module from to)}}<a class="btn btn--ghost btn--sm" href="/audit">Clear</a>{{/if}}
+  </form>
+  {{#if rows.length}}
+  <div class="table-wrap"><table class="table table--stack">
+    <thead><tr>{{sortTh meta "time" "When"}}{{sortTh meta "user" "User"}}{{sortTh meta "action" "Action"}}{{sortTh meta "module" "Module"}}<th>Record</th><th>Details</th></tr></thead>
+    <tbody>
+      {{#each rows}}
+      <tr>
+        <td data-label="When" class="nowrap">{{datetime created_at}}</td>
+        <td data-label="User"><div>{{default user_name "—"}}{{#if user_role}}<br><span class="muted">{{humanize user_role}}</span>{{/if}}</div></td>
+        <td data-label="Action"><div><strong>{{humanize action}}</strong>{{#if decision}} {{badge decision}}{{/if}}</div></td>
+        <td data-label="Module">{{humanize module}}</td>
+        <td data-label="Record">{{#if record_type}}{{humanize record_type}} #{{record_id}}{{else}}—{{/if}}</td>
+        <td data-label="Details"><div>
+          {{#if remarks}}<div>{{remarks}}</div>{{/if}}
+          {{#if (or prev next)}}<details><summary class="muted" style="cursor:pointer">Changes</summary>
+            {{#if prev}}<div class="muted" style="font-size:12px;margin-top:6px">Before</div><pre style="white-space:pre-wrap;font-size:12px;max-width:420px;margin:2px 0">{{prev}}</pre>{{/if}}
+            {{#if next}}<div class="muted" style="font-size:12px">After</div><pre style="white-space:pre-wrap;font-size:12px;max-width:420px;margin:2px 0">{{next}}</pre>{{/if}}
+          </details>{{/if}}
+          <span class="muted" style="font-size:12px">{{ip_address}}</span>
+        </div></td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table></div>
+  {{> pager meta=meta}}
+  {{else}}<div class="empty"><svg class="ic"><use href="#i-shield"/></svg><strong>No audit entries match</strong>Adjust the filters to see more.</div>{{/if}}
+</section>
+{{> app_shell_close}}

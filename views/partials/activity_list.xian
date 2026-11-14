@@ -1,0 +1,20 @@
+<section class="card">
+  <div class="card__header"><div><h2>{{title}}</h2><p>{{subtitle}}</p></div></div>
+  <div class="card__body card__body--flush" style="padding-top:8px">
+  {{#if items.length}}
+    <ul class="list">
+      {{#each items}}
+      <li class="list__item">
+        <span class="dot"></span>
+        <div class="list__body">
+          <strong>{{humanize action}}{{#if record_type}} · {{humanize record_type}}{{/if}}</strong>
+          <small>{{default user_name "System"}}{{#if user_role}} ({{humanize user_role}}){{/if}} · {{timeAgo created_at}}</small>
+        </div>
+      </li>
+      {{/each}}
+    </ul>
+  {{else}}
+    <div class="empty empty--sm"><svg class="ic"><use href="#i-inbox"/></svg><strong>No activity yet</strong>Actions taken in the system will appear here.</div>
+  {{/if}}
+  </div>
+</section>

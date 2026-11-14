@@ -1,0 +1,30 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header"><div><h1>Salary Components</h1><p>Earning and deduction types. System components are used by the payroll engine and cannot be changed.</p></div></div>
+<div class="grid grid--main-side">
+  <section class="card" style="align-self:start"><div class="table-wrap"><table data-table-tools class="table table--stack">
+    <thead><tr><th>Component</th><th>Type</th><th>Category</th><th>Taxable</th><th>Status</th><th class="actions"><span class="sr-only">Actions</span></th></tr></thead>
+    <tbody>{{#each components}}<tr>
+      <td class="cell-primary"><strong>{{name}}</strong><br><span class="muted">{{code}}{{#if is_system}} · system{{/if}}</span></td>
+      <td data-label="Type">{{humanize component_type}}</td>
+      <td data-label="Category">{{humanize category}}</td>
+      <td data-label="Taxable">{{#if (eq component_type "earning")}}{{#if is_taxable}}Yes{{else}}No{{/if}}{{else}}—{{/if}}</td>
+      <td data-label="Status">{{#if is_active}}{{badge "active"}}{{else}}{{badge "inactive"}}{{/if}}</td>
+      <td class="actions">{{#unless is_system}}<form method="POST" action="/payroll/setup/components/{{id}}/toggle"><input type="hidden" name="_csrf" value="{{../csrfToken}}"><button class="btn btn--ghost btn--sm" type="submit">{{#if is_active}}Deactivate{{else}}Activate{{/if}}</button></form>{{/unless}}</td>
+    </tr>{{/each}}</tbody>
+  </table></div></section>
+  <section class="card" style="align-self:start">
+    <div class="card__header"><h2>Add component</h2></div>
+    <form class="card__body" method="POST" action="/payroll/setup/components" novalidate>
+      <input type="hidden" name="_csrf" value="{{csrfToken}}">
+      <div class="grid" style="gap:14px">
+        {{> field name="code" label="Code" required=true placeholder="e.g. RICE"}}
+        {{> field name="name" label="Name" required=true placeholder="e.g. Rice Subsidy"}}
+        <div class="field"><label for="category">Category <span class="req">*</span></label><select class="select" id="category" name="category">{{#each categories}}<option value="{{this}}">{{humanize this}}</option>{{/each}}</select></div>
+        <label class="check"><input type="checkbox" name="is_taxable" value="1" checked> Taxable (earnings only)</label>
+        <button class="btn btn--primary" type="submit"><svg class="ic"><use href="#i-plus"/></svg>Add component</button>
+      </div>
+    </form>
+  </section>
+</div>
+{{> app_shell_close}}

@@ -1,0 +1,94 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><h1>Dependents & Benefits</h1><p>The company HMO and life and accident insurance. Add your dependents first; Payroll Staff verify each request.</p></div>
+</div>
+
+<div class="alert {{#if eligibility.eligible}}alert--success{{else}}alert--warning{{/if}}" role="status"><svg class="ic"><use href="#i-{{#if eligibility.eligible}}check-circle{{else}}info{{/if}}"/></svg>
+  <div>{{#if eligibility.eligible}}You are <strong>eligible</strong> for the company benefits ({{humanize eligibility.employmentType}} employee).{{else}}{{eligibility.reason}} You can still add dependents now and enroll once this is corrected.{{/if}}</div>
+</div>
+
+<div class="grid grid--2 mb">
+  <section class="card">
+    <div class="card__header"><div><h2>HMO — {{plans.hmo.provider}}</h2><p>{{money plans.hmo.coverage}} coverage · covers you and up to {{plans.hmo.maxDependents}} dependents who are immediate family (spouse, child or parent)</p></div></div>
+    <div class="card__body">
+      {{#if (eq benForm.benefit_type "hmo")}}{{#if benErrors.form}}<div class="alert alert--error" role="alert"><svg class="ic"><use href="#i-alert"/></svg><div>{{benErrors.form}}</div></div>{{/if}}{{/if}}
+      {{#if hasHmo}}<p class="muted">You already have the HMO or your request is waiting for verification. See My benefits below.</p>
+      {{else}}
+      <form method="POST" action="/my/benefits/enrollments" enctype="multipart/form-data" novalidate>
+        <input type="hidden" name="_csrf" value="{{csrfToken}}"><input type="hidden" name="benefit_type" value="hmo">
+        <fieldset class="field" style="border:0;padding:0;margin:0"><legend>Dependents to cover (up to {{plans.hmo.maxDependents}})</legend>
+          {{#if coverable.length}}
+          <div class="check-list">{{#each coverable}}<label class="check"><input type="checkbox" name="dependent_ids" value="{{id}}"> <span><strong>{{full_name}}</strong> <span class="muted">{{humanize relationship}}</span></span></label>{{/each}}</div>
+          {{else}}<p class="muted">No verified immediate-family dependents yet. You can enroll yourself now and add them later.</p>{{/if}}
+          {{#if benErrors.dependent_ids}}<span class="field__error">{{benErrors.dependent_ids}}</span>{{/if}}
+        </fieldset>
+        <div class="field" style="margin-top:12px"><label for="hmo_doc">Signed enrollment form</label><input class="input" type="file" id="hmo_doc" name="attachment" accept=".pdf,.jpg,.jpeg,.png"></div>
+        <button type="submit" class="btn btn--primary" style="margin-top:16px" {{#unless eligibility.eligible}}disabled title="{{eligibility.reason}}"{{/unless}}><svg class="ic"><use href="#i-send"/></svg>Enroll in the HMO</button>
+      </form>
+      {{/if}}
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card__header"><div><h2>Life and accident insurance — {{plans.insurance.provider}}</h2><p>One combined plan. Name up to {{plans.insurance.maxBeneficiaries}} beneficiaries: your spouse or a family member. They share the benefit equally.</p></div></div>
+    <div class="card__body">
+      {{#if (eq benForm.benefit_type "life_accident")}}{{#if benErrors.form}}<div class="alert alert--error" role="alert"><svg class="ic"><use href="#i-alert"/></svg><div>{{benErrors.form}}</div></div>{{/if}}{{/if}}
+      {{#if hasInsurance}}<p class="muted">You already have this insurance or your request is waiting for verification. See My benefits below.</p>
+      {{else}}
+      <form method="POST" action="/my/benefits/enrollments" enctype="multipart/form-data" novalidate>
+        <input type="hidden" name="_csrf" value="{{csrfToken}}"><input type="hidden" name="benefit_type" value="life_accident">
+        <div class="form-grid">
+          <div class="field span-2"><label for="ben_1_name">Beneficiary 1 — full name <span class="req" aria-hidden="true">*</span></label><input class="input" id="ben_1_name" name="ben_1_name" value="{{benForm.ben_1_name}}" maxlength="160">{{#if benErrors.ben_1_name}}<span class="field__error">{{benErrors.ben_1_name}}</span>{{/if}}</div>
+          <div class="field"><label for="ben_1_relationship">Relationship <span class="req" aria-hidden="true">*</span></label><select class="select" id="ben_1_relationship" name="ben_1_relationship"><option value="">Choose</option>{{#each beneficiaryRelations}}<option value="{{this}}" {{selected ../benForm.ben_1_relationship this}}>{{humanize this}}</option>{{/each}}</select>{{#if benErrors.ben_1_relationship}}<span class="field__error">{{benErrors.ben_1_relationship}}</span>{{/if}}</div>
+          <div class="field"><label for="ben_1_birth_date">Birth date</label><input class="input" type="date" id="ben_1_birth_date" name="ben_1_birth_date" value="{{benForm.ben_1_birth_date}}">{{#if benErrors.ben_1_birth_date}}<span class="field__error">{{benErrors.ben_1_birth_date}}</span>{{/if}}</div>
+          <div class="field span-2"><label for="ben_2_name">Beneficiary 2 — full name (optional)</label><input class="input" id="ben_2_name" name="ben_2_name" value="{{benForm.ben_2_name}}" maxlength="160">{{#if benErrors.ben_2_name}}<span class="field__error">{{benErrors.ben_2_name}}</span>{{/if}}</div>
+          <div class="field"><label for="ben_2_relationship">Relationship</label><select class="select" id="ben_2_relationship" name="ben_2_relationship"><option value="">Choose</option>{{#each beneficiaryRelations}}<option value="{{this}}" {{selected ../benForm.ben_2_relationship this}}>{{humanize this}}</option>{{/each}}</select>{{#if benErrors.ben_2_relationship}}<span class="field__error">{{benErrors.ben_2_relationship}}</span>{{/if}}</div>
+          <div class="field"><label for="ben_2_birth_date">Birth date</label><input class="input" type="date" id="ben_2_birth_date" name="ben_2_birth_date" value="{{benForm.ben_2_birth_date}}">{{#if benErrors.ben_2_birth_date}}<span class="field__error">{{benErrors.ben_2_birth_date}}</span>{{/if}}</div>
+          <div class="field span-2"><label for="ins_doc">Signed enrollment form</label><input class="input" type="file" id="ins_doc" name="attachment" accept=".pdf,.jpg,.jpeg,.png"></div>
+        </div>
+        <button type="submit" class="btn btn--primary" style="margin-top:16px" {{#unless eligibility.eligible}}disabled title="{{eligibility.reason}}"{{/unless}}><svg class="ic"><use href="#i-send"/></svg>Enroll in the insurance</button>
+      </form>
+      {{/if}}
+    </div>
+  </section>
+</div>
+
+<div class="grid grid--2 mb">
+  <section class="card">
+    <div class="card__header"><div><h2>Add a dependent</h2><p>{{approvedDependents}} verified so far</p></div></div>
+    <div class="card__body">
+      {{#if depErrors.form}}<div class="alert alert--error" role="alert"><svg class="ic"><use href="#i-alert"/></svg><div>{{depErrors.form}}</div></div>{{/if}}
+      <form method="POST" action="/my/benefits/dependents" enctype="multipart/form-data" novalidate>
+        <input type="hidden" name="_csrf" value="{{csrfToken}}">
+        <div class="form-grid">
+          <div class="field span-2"><label for="full_name">Full name <span class="req" aria-hidden="true">*</span></label><input class="input" id="full_name" name="full_name" value="{{depForm.full_name}}" maxlength="160">{{#if depErrors.full_name}}<span class="field__error">{{depErrors.full_name}}</span>{{/if}}</div>
+          <div class="field"><label for="relationship">Relationship <span class="req" aria-hidden="true">*</span></label><select class="select" id="relationship" name="relationship"><option value="">Choose</option>{{#each relationships}}<option value="{{this}}" {{selected ../depForm.relationship this}}>{{humanize this}}</option>{{/each}}</select>{{#if depErrors.relationship}}<span class="field__error">{{depErrors.relationship}}</span>{{/if}}</div>
+          <div class="field"><label for="dep_birth">Birth date <span class="req" aria-hidden="true">*</span></label><input class="input" type="date" id="dep_birth" name="birth_date" value="{{depForm.birth_date}}">{{#if depErrors.birth_date}}<span class="field__error">{{depErrors.birth_date}}</span>{{/if}}</div>
+          <div class="field span-2"><label for="dep_doc">Proof (birth or marriage certificate)</label><input class="input" type="file" id="dep_doc" name="attachment" accept=".pdf,.jpg,.jpeg,.png">{{#if depErrors.attachment}}<span class="field__error">{{depErrors.attachment}}</span>{{/if}}</div>
+        </div>
+        <button type="submit" class="btn btn--primary" style="margin-top:16px"><svg class="ic"><use href="#i-plus"/></svg>Add dependent</button>
+      </form>
+    </div>
+  </section>
+  <section class="card">
+    <div class="card__header"><div><h2>My dependents</h2></div></div>
+    <div class="card__body card__body--flush">
+      {{#if dependents.length}}<ul class="list">{{#each dependents}}<li class="list__item"><div class="list__body"><strong>{{full_name}}</strong><small>{{humanize relationship}} · born {{date birth_date}} · {{request_no}}{{#if decision_remarks}} · “{{decision_remarks}}”{{/if}}</small></div>{{badge status}}{{#if (eq status "pending")}}<form method="POST" action="/my/benefits/dependent/{{id}}/cancel"><input type="hidden" name="_csrf" value="{{../csrfToken}}"><button class="btn btn--ghost btn--sm" type="submit">Cancel</button></form>{{/if}}</li>{{/each}}</ul>
+      {{else}}<div class="empty empty--sm"><svg class="ic"><use href="#i-users"/></svg><strong>No dependents yet</strong></div>{{/if}}
+    </div>
+  </section>
+</div>
+
+<section class="card">
+  <div class="card__header"><div><h2>My benefits</h2></div></div>
+  <div class="card__body card__body--flush">
+    {{#if benefits.length}}<ul class="list">{{#each benefits}}<li class="list__item"><div class="list__body"><strong>{{plan_name}}</strong>
+      <small>{{humanize benefit_type}}{{#if coverage_amount}} · {{money coverage_amount}} coverage{{/if}} · {{request_no}}{{#if decision_remarks}} · “{{decision_remarks}}”{{/if}}</small>
+      {{#if covered.length}}<small>Covers: {{#each covered}}{{full_name}} ({{humanize relationship}}){{#unless @last}}, {{/unless}}{{/each}}</small>{{/if}}
+      {{#if beneficiaries.length}}<small>Beneficiaries: {{#each beneficiaries}}{{full_name}} ({{humanize relationship}}, {{share_percent}}%){{#unless @last}}, {{/unless}}{{/each}}</small>{{/if}}</div>
+      {{badge status}}{{#if (eq status "pending")}}<form method="POST" action="/my/benefits/benefit/{{id}}/cancel"><input type="hidden" name="_csrf" value="{{../csrfToken}}"><button class="btn btn--ghost btn--sm" type="submit">Cancel</button></form>{{/if}}</li>{{/each}}</ul>
+    {{else}}<div class="empty empty--sm"><svg class="ic"><use href="#i-shield"/></svg><strong>No benefit enrollments</strong></div>{{/if}}
+  </div>
+</section>
+{{> app_shell_close}}

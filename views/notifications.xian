@@ -1,0 +1,29 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><h1>Notifications</h1><p>Updates about payroll, requests and announcements.</p></div>
+  <div class="page-actions">
+    <div class="seg" role="group" aria-label="Filter">
+      <a class="btn btn--sm {{#if unreadOnly}}btn--secondary{{else}}btn--primary{{/if}}" href="/notifications">All</a>
+      <a class="btn btn--sm {{#if unreadOnly}}btn--primary{{else}}btn--secondary{{/if}}" href="/notifications?filter=unread">Unread</a>
+    </div>
+    {{#if unread}}<form method="POST" action="/notifications/read-all"><input type="hidden" name="_csrf" value="{{csrfToken}}"><button class="btn btn--secondary btn--sm" type="submit"><svg class="ic ic--sm"><use href="#i-check"/></svg>Mark all read</button></form>{{/if}}
+  </div>
+</div>
+<section class="card">
+  {{#if rows.length}}
+  <ul class="list">
+    {{#each rows}}
+    <li class="list__item {{#if is_read}}is-read{{/if}}">
+      <span class="dot" aria-hidden="true"></span>
+      <div class="list__body"><strong>{{title}}{{#unless is_read}} <span class="sr-only">(unread)</span>{{/unless}}</strong><small>{{message}}</small><br><small>{{datetime created_at}}</small></div>
+      {{#unless is_read}}
+      <form method="POST" action="/notifications/{{id}}/read"><input type="hidden" name="_csrf" value="{{../csrfToken}}"><button class="btn btn--ghost btn--sm" type="submit">{{#if link_url}}Open{{else}}Mark read{{/if}}</button></form>
+      {{/unless}}
+    </li>
+    {{/each}}
+  </ul>
+  {{> pager meta=meta}}
+  {{else}}<div class="empty"><svg class="ic"><use href="#i-bell"/></svg><strong>{{#if unreadOnly}}No unread notifications{{else}}No notifications yet{{/if}}</strong>You will be notified about payroll, leave and request updates here.</div>{{/if}}
+</section>
+{{> app_shell_close}}

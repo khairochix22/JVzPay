@@ -1,0 +1,88 @@
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="app">
+  <aside class="sidebar" id="sidebar" aria-label="Main navigation">
+    <a class="sidebar__brand" href="/dashboard" aria-label="JVzPay home">
+      <img class="sidebar__logo logo-glow" src="/img/johnvivz-logo-trim.png" alt="JohnVivz" width="96" height="52">
+      <img class="sidebar__mark logo-glow" src="/img/logo-mark.png" alt="JohnVivz" width="44" height="44">
+      <span class="brand-name">JVzPay<small>Manage · Pay · Grow</small></span>
+    </a>
+    <nav class="sidebar__nav">
+      {{#each nav}}
+      {{#if single}}
+        <a class="nav-link {{#if single.active}}is-active{{/if}}" href="{{single.href}}" title="{{single.label}}" {{#if single.active}}aria-current="page"{{/if}}>
+          <svg class="ic"><use href="#i-{{single.icon}}"/></svg>
+          <span class="label">{{single.label}}</span>
+          {{#if single.count}}<span class="nav-link__count">{{single.count}}</span>{{/if}}
+        </a>
+      {{else}}
+      <div class="nav-sec {{#if this.open}}is-open{{/if}}" data-nav-sec="{{group}}">
+        <button type="button" class="nav-sec__head" data-nav-toggle aria-expanded="{{#if this.open}}true{{else}}false{{/if}}" aria-controls="nav-sec-{{@index}}" title="{{group}}">
+          <svg class="ic"><use href="#i-{{icon}}"/></svg>
+          <span class="label">{{group}}</span>
+          {{#if count}}<span class="nav-link__count nav-sec__count">{{count}}</span>{{/if}}
+          <svg class="ic ic--sm nav-sec__chev"><use href="#i-chevron-down"/></svg>
+        </button>
+        <div class="nav-sec__items" id="nav-sec-{{@index}}">
+          {{#each items}}
+          <a class="nav-link nav-link--sub {{#if active}}is-active{{/if}}" href="{{href}}" title="{{label}}" {{#if active}}aria-current="page"{{/if}}>
+            <svg class="ic"><use href="#i-{{icon}}"/></svg>
+            <span class="label">{{label}}</span>
+            {{#if count}}<span class="nav-link__count">{{count}}</span>{{/if}}
+          </a>
+          {{/each}}
+        </div>
+      </div>
+      {{/if}}
+      {{/each}}
+    </nav>
+    <div class="sidebar__footer">
+      <a class="secure-card" href="/privacy" title="Privacy Notice">
+        <svg class="ic"><use href="#i-shield"/></svg>
+        <span class="label"><strong>Secure &amp; Compliant</strong>Your data is protected under RA 10173</span>
+      </a>
+      <button type="button" class="sidebar-toggle-desktop" data-sidebar-toggle aria-expanded="true" aria-label="Collapse sidebar">
+        <svg class="ic"><use href="#i-chevron-left"/></svg><span class="label">Collapse</span>
+      </button>
+    </div>
+  </aside>
+  <div class="scrim" data-drawer-close></div>
+
+  <div class="main">
+    <header class="topbar">
+      <button type="button" class="icon-btn topbar__menu" data-drawer-open aria-label="Open navigation"><svg class="ic"><use href="#i-menu"/></svg></button>
+      <div class="topbar__title">{{title}}</div>
+      <div class="search-box" data-page-search>
+        <svg class="ic"><use href="#i-search"/></svg>
+        <input type="search" class="search-box__input" placeholder="Search pages and reports…" aria-label="Search pages and reports" role="combobox" aria-expanded="false" aria-controls="page-search-results" aria-autocomplete="list" autocomplete="off" spellcheck="false">
+        <kbd class="search-box__key" aria-hidden="true">/</kbd>
+        <ul class="search-box__results" id="page-search-results" role="listbox" aria-label="Matching pages" hidden></ul>
+        <ul hidden data-search-extra>{{#each searchReports}}<li data-href="{{href}}" data-group="Reports · {{group}}">{{title}}</li>{{/each}}</ul>
+      </div>
+      <div class="topbar__spacer"></div>
+      {{> theme_toggle}}
+      <a class="icon-btn" href="/notifications" aria-label="Notifications{{#if unread}} ({{unread}} unread){{/if}}">
+        <svg class="ic"><use href="#i-bell"/></svg>
+        {{#if unread}}<span class="icon-btn__dot">{{#if (gt unread 99)}}99+{{else}}{{unread}}{{/if}}</span>{{/if}}
+      </a>
+      <div class="menu">
+        <button type="button" class="user-chip" data-menu-toggle aria-haspopup="true" aria-expanded="false">
+          <span class="avatar">{{initials me.name}}</span>
+          <span class="user-chip__meta"><strong>{{me.name}}</strong><span>{{me.roleName}}</span></span>
+          <svg class="ic ic--sm"><use href="#i-chevron-down"/></svg>
+        </button>
+        <div class="menu__panel" role="menu">
+          <div class="menu__head">{{me.email}}</div>
+          <a class="menu__item" role="menuitem" href="/account/password"><svg class="ic ic--sm"><use href="#i-lock"/></svg>Change password</a>
+          <div class="menu__sep"></div>
+          <form method="POST" action="/logout">
+            <input type="hidden" name="_csrf" value="{{csrfToken}}">
+            <button type="submit" class="menu__item menu__item--danger" role="menuitem" data-no-loading><svg class="ic ic--sm"><use href="#i-logout"/></svg>Sign out</button>
+          </form>
+        </div>
+      </div>
+    </header>
+
+    <main class="content" id="main" tabindex="-1">
+      <div class="print-brand" aria-hidden="true"><img src="/img/logo-full.png" alt="" width="110" height="59"><div><strong>{{company.name}}</strong><span>{{company.address}}</span></div></div>
+      {{#each success_msg}}<div class="alert alert--success" role="status"><svg class="ic"><use href="#i-check-circle"/></svg><div>{{this}}</div></div>{{/each}}
+      {{#each error_msg}}<div class="alert alert--error" role="alert"><svg class="ic"><use href="#i-alert"/></svg><div>{{this}}</div></div>{{/each}}

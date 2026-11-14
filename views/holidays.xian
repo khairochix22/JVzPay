@@ -1,0 +1,33 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header"><div><h1>Holidays {{year}}</h1><p>Enter each year's holidays from the official proclamation. They drive holiday pay and leave day counts.</p></div>
+  <form class="page-actions" method="GET" action="/payroll/setup/holidays"><input class="input" style="width:110px" type="number" name="year" value="{{year}}" aria-label="Year" min="2000" max="2100"><button class="btn btn--secondary" type="submit">Go</button></form></div>
+<div class="grid grid--main-side">
+  <section class="card" style="align-self:start">
+    {{#if holidays.length}}
+    <div class="table-wrap"><table data-table-tools class="table table--stack">
+      <thead><tr><th>Date</th><th>Holiday</th><th>Type</th><th>Status</th><th class="actions"><span class="sr-only">Actions</span></th></tr></thead>
+      <tbody>{{#each holidays}}<tr>
+        <td data-label="Date" class="nowrap">{{date holiday_date}}</td>
+        <td class="cell-primary"><strong>{{name}}</strong></td>
+        <td data-label="Type">{{humanize holiday_type}}</td>
+        <td data-label="Status">{{#if is_active}}{{badge "active"}}{{else}}{{badge "inactive"}}{{/if}}</td>
+        <td class="actions"><form method="POST" action="/payroll/setup/holidays/{{id}}/toggle"><input type="hidden" name="_csrf" value="{{../csrfToken}}"><button class="btn btn--ghost btn--sm" type="submit">{{#if is_active}}Deactivate{{else}}Activate{{/if}}</button></form></td>
+      </tr>{{/each}}</tbody>
+    </table></div>
+    {{else}}<div class="empty"><svg class="ic"><use href="#i-calendar"/></svg><strong>No holidays entered for {{year}}</strong>Add them using the form.</div>{{/if}}
+  </section>
+  <section class="card" style="align-self:start">
+    <div class="card__header"><h2>Add holiday</h2></div>
+    <form class="card__body" method="POST" action="/payroll/setup/holidays" novalidate>
+      <input type="hidden" name="_csrf" value="{{csrfToken}}">
+      <div class="grid" style="gap:14px">
+        {{> field name="holiday_date" label="Date" type="date" required=true}}
+        {{> field name="name" label="Name" required=true placeholder="e.g. Bonifacio Day"}}
+        <div class="field"><label for="holiday_type">Type <span class="req">*</span></label><select class="select" id="holiday_type" name="holiday_type">{{#each types}}<option value="{{this}}">{{humanize this}}</option>{{/each}}</select></div>
+        <button class="btn btn--primary" type="submit"><svg class="ic"><use href="#i-plus"/></svg>Add holiday</button>
+      </div>
+    </form>
+  </section>
+</div>
+{{> app_shell_close}}

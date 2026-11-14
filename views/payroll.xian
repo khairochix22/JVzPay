@@ -1,0 +1,65 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><h1>Payroll</h1><p>Kinsenas: the 1st to the 15th, paid on the 25th. Katapusan: the 16th to the end of the month, paid on the 10th of the next month. These dates are fixed. A payday on a weekend or holiday is released on the working day before; the 13th-month pay goes with the 1–15 December payroll, by 24 December.</p></div>
+</div>
+
+<nav class="page-actions mb" aria-label="Filter">
+  <a class="btn {{#unless filter}}btn--primary{{else}}btn--secondary{{/unless}} btn--sm" href="/payroll">All</a>
+  <a class="btn {{#if (eq filter "semi_monthly")}}btn--primary{{else}}btn--secondary{{/if}} btn--sm" href="/payroll?show=semi_monthly">Kinsenas &amp; katapusan</a>
+  <a class="btn {{#if (eq filter "special")}}btn--primary{{else}}btn--secondary{{/if}} btn--sm" href="/payroll?show=special">Special periods</a>
+</nav>
+
+<section class="card mb">
+  <div class="card__body card__body--flush">
+    {{#if periods.length}}<div class="table-wrap"><table class="table table--stack"><thead><tr><th>Period</th><th>Payday</th><th>Payroll</th><th class="text-right">Employees</th><th class="text-right">Net pay</th><th class="actions"><span class="sr-only">Actions</span></th></tr></thead><tbody>
+    {{#each periods}}<tr{{#if current}} class="is-current"{{/if}}><td class="cell-primary"><strong>{{label}}</strong>{{#if current}} <span class="badge badge--info">Current cutoff</span>{{/if}}{{#if include_thirteenth}} <span class="badge badge--success">13th month</span>{{/if}}<br><span class="muted">{{code}} · {{scopeLabel}}</span></td>
+      <td data-label="Payday"><strong>{{date pay_date}}</strong>{{#if moved}}<br><span class="muted">released {{date release_date}} (weekend or holiday)</span>{{/if}}</td>
+      <td data-label="Payroll">{{#if batch_id}}{{badge run_status}}<br><span class="muted">{{batch_no}}</span>{{else}}{{#if cutoffPassed}}<span class="badge badge--warning">Not computed</span>{{else}}<span class="muted">Cutoff not over</span>{{/if}}{{/if}}
+        {{#if compute_error}}<br><span class="field__error">{{compute_error}}</span>{{/if}}</td>
+      <td data-label="Employees" class="text-right num">{{#if batch_id}}{{employee_count}}{{else}}—{{/if}}</td>
+      <td data-label="Net pay" class="text-right num">{{#if batch_id}}{{money total_net}}{{else}}—{{/if}}</td>
+      <td class="actions" style="white-space:nowrap">
+        {{#if batch_id}}<a class="btn btn--secondary btn--sm" href="/payroll/batches/{{batch_id}}">Open</a>{{/if}}
+        {{#if ../canPrepare}}{{#if (eq status "open")}}{{#if (or (not batch_id) (eq run_status "draft"))}}<form method="POST" action="/payroll/periods/{{id}}/compute" style="display:inline"><input type="hidden" name="_csrf" value="{{../csrfToken}}"><button class="btn btn--primary btn--sm" type="submit">{{#if batch_id}}Recompute{{else}}Compute{{/if}}</button></form>{{/if}}{{/if}}{{/if}}
+      </td></tr>{{/each}}
+    </tbody></table></div>
+    {{else}}<div class="empty empty--sm"><svg class="ic"><use href="#i-calendar"/></svg><strong>No payroll periods yet</strong></div>{{/if}}
+  </div>
+</section>
+
+{{#if canPeriods}}
+<div class="grid grid--2">
+  <section class="card">
+    <div class="card__header"><div><h2>Kinsenas and katapusan of a month</h2><p>Creates both periods on the fixed dates. The current and next month are created automatically.</p></div></div>
+    <form class="card__body" method="POST" action="/payroll/periods/month">
+      <input type="hidden" name="_csrf" value="{{csrfToken}}">
+      <div class="field"><label for="month">Month</label><input class="input" type="month" id="month" name="month" value="{{month}}" required></div>
+      <div class="form-actions"><button class="btn btn--primary" type="submit">Create the two periods</button></div>
+    </form>
+  </section>
+
+  <section class="card">
+    <div class="card__header"><div><h2>Special period</h2><p>For employees HR pays weekly or monthly (by position, compensation or job offer): a department, or chosen employees.</p></div></div>
+    <form class="card__body" method="POST" action="/payroll/periods/special" novalidate>
+      <input type="hidden" name="_csrf" value="{{csrfToken}}">
+      {{#if errors.form}}<div class="alert alert--error" role="alert"><svg class="ic"><use href="#i-alert"/></svg><div>{{errors.form}}</div></div>{{/if}}
+      <div class="form-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+        <div class="field"><label for="pay_frequency">Pay frequency</label><select class="select" id="pay_frequency" name="pay_frequency"><option value="monthly" {{selected special.pay_frequency "monthly"}}>Monthly</option><option value="weekly" {{selected special.pay_frequency "weekly"}}>Weekly</option></select>{{#if errors.pay_frequency}}<span class="field__error">{{errors.pay_frequency}}</span>{{/if}}</div>
+        {{> field name="start_date" label="From" type="date" value=special.start_date error=errors.start_date}}
+        {{> field name="end_date" label="To" type="date" value=special.end_date error=errors.end_date}}
+        {{> field name="pay_date" label="Payday" type="date" value=special.pay_date error=errors.pay_date}}
+        <div class="field span-2"><label for="department_id">Department</label><select class="select" id="department_id" name="department_id"><option value="">— or choose employees below —</option>{{#each departments}}<option value="{{id}}" {{selected id ../special.department_id}}>{{name}}</option>{{/each}}</select></div>
+      </div>
+      <fieldset class="field" style="border:0;padding:0;margin:8px 0 0"><legend>Employees paid weekly or monthly</legend>
+        {{#if otherEmployees.length}}<div class="check-list">{{#each otherEmployees}}<label class="check"><input type="checkbox" name="employee_ids" value="{{id}}"> <span><strong>{{name}}</strong> <span class="muted">{{employee_no}} · {{humanize pay_frequency}}</span></span></label>{{/each}}</div>
+        {{else}}<p class="muted">Every active employee is paid semi-monthly.</p>{{/if}}
+        {{#if errors.scope}}<span class="field__error">{{errors.scope}}</span>{{/if}}
+      </fieldset>
+      <label class="check"><input type="checkbox" name="include_thirteenth" value="1" {{checked special.include_thirteenth 1}}> <span>Include the 13th-month pay (released by 24 December)</span></label>
+      <div class="form-actions"><button class="btn btn--primary" type="submit">Create special period</button></div>
+    </form>
+  </section>
+</div>
+{{/if}}
+{{> app_shell_close}}

@@ -1,0 +1,40 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><h1>Leave Balances {{year}}</h1><p>Remaining days per employee and leave type (entitled + adjustments − used − reserved by pending applications).</p></div>
+</div>
+<section class="card mb">
+  <form class="toolbar" method="GET" action="/leave-balances" role="search">
+    <div class="input-group search"><svg class="ic"><use href="#i-search"/></svg><label class="sr-only" for="q">Search</label><input class="input" type="search" id="q" name="q" value="{{t.q}}" placeholder="Employee name or ID" data-autosubmit></div>
+    <input class="input" style="width:110px" type="number" name="year" value="{{year}}" min="2000" max="2100" aria-label="Year">
+    <select class="select" name="department" aria-label="Department" data-autosubmit><option value="">All departments</option>{{#each departments}}<option value="{{id}}" {{selected id ../department}}>{{name}}</option>{{/each}}</select>
+    <button class="btn btn--secondary" type="submit">Apply</button>
+  </form>
+  {{#if rows.length}}
+  <div class="table-wrap"><table class="table table--stack">
+    <thead><tr>{{sortTh meta "employee" "Employee"}}{{#each types}}<th class="text-right">{{name}}</th>{{/each}}</tr></thead>
+    <tbody>{{#each rows}}<tr>
+      <td class="cell-primary"><strong>{{name}}</strong><br><span class="muted">{{employee_no}} · {{department}}</span></td>
+      {{#each cells}}<td data-label="{{lookup (lookup ../../types @index) "name"}}" class="text-right num">{{#if this}}<strong>{{fixed remaining 1}}</strong><span class="muted"> / {{fixed total 1}}</span>{{#if (gt pending_days 0)}}<br><span class="muted" style="font-size:12px">{{fixed pending_days 1}} reserved</span>{{/if}}{{else}}—{{/if}}</td>{{/each}}
+    </tr>{{/each}}</tbody>
+  </table></div>
+  {{> pager meta=meta}}
+  {{else}}<div class="empty"><svg class="ic"><use href="#i-users"/></svg><strong>No active employees match</strong>Try another search.</div>{{/if}}
+</section>
+
+{{#if canAdjust}}
+<section class="card">
+  <div class="card__header"><div><h2>Adjust a balance</h2><p>Use for carry-over, tenure-based credits or corrections. The reason is recorded in the audit log and sent to the employee.</p></div></div>
+  <form class="card__body" method="POST" action="/leave-balances/adjust" novalidate>
+    <input type="hidden" name="_csrf" value="{{csrfToken}}"><input type="hidden" name="year" value="{{year}}">
+    <div class="form-grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
+      <div class="field"><label for="adj-emp">Employee <span class="req">*</span></label><select class="select" id="adj-emp" name="employee_id" required><option value="">Select</option>{{#each rows}}<option value="{{id}}">{{name}} ({{employee_no}})</option>{{/each}}</select><span class="field__hint">Employees on this page.</span></div>
+      <div class="field"><label for="adj-type">Leave type <span class="req">*</span></label><select class="select" id="adj-type" name="leave_type_id" required>{{#each types}}<option value="{{id}}">{{name}}</option>{{/each}}</select></div>
+      <div class="field"><label for="adj-delta">Days (+/−) <span class="req">*</span></label><input class="input" id="adj-delta" name="delta" inputmode="decimal" placeholder="e.g. 2 or -0.5" required></div>
+      <div class="field span-2"><label for="adj-reason">Reason <span class="req">*</span></label><input class="input" id="adj-reason" name="reason" maxlength="255" placeholder="e.g. 2025 carry-over approved by management" required></div>
+    </div>
+    <div class="form-actions"><button class="btn btn--primary" type="submit">Apply adjustment</button></div>
+  </form>
+</section>
+{{/if}}
+{{> app_shell_close}}

@@ -1,0 +1,44 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><h1>Overtime Approvals</h1><p>Approved overtime is paid in the next payroll computation for its period. You cannot decide on overtime you encoded or your own.</p></div>
+  <div class="page-actions"><a class="btn btn--secondary" href="/overtime">All overtime</a></div>
+</div>
+<section class="card">
+  <form class="toolbar" method="GET" action="/overtime/review">
+    <div class="input-group search"><svg class="ic"><use href="#i-search"/></svg><label class="sr-only" for="q">Search</label><input class="input" type="search" id="q" name="q" value="{{t.q}}" placeholder="Employee name or ID" data-autosubmit></div>
+    <input class="input" style="width:auto" type="date" name="from" value="{{from}}" aria-label="From date"><input class="input" style="width:auto" type="date" name="to" value="{{to}}" aria-label="To date">
+    <select class="select" name="status" aria-label="Status" data-autosubmit>{{#each (array "pending" "approved" "rejected" "all")}}<option value="{{this}}" {{selected this ../status}}>{{humanize this}}</option>{{/each}}</select>
+    <button class="btn btn--secondary" type="submit">Apply</button>
+  </form>
+  {{#if rows.length}}
+  <div class="table-wrap"><table class="table table--stack">
+    <thead><tr>{{sortTh meta "date" "Date"}}{{sortTh meta "employee" "Employee"}}<th class="text-right">Hours</th><th>Type</th><th>Reason</th><th>Status</th><th>Decision</th></tr></thead>
+    <tbody>{{#each rows}}<tr>
+      <td data-label="Date" class="nowrap">{{date work_date}}</td>
+      <td class="cell-primary"><strong>{{name}}</strong><br><span class="muted">{{employee_no}} · {{department}} · by {{submitted_by_name}}</span></td>
+      <td data-label="Hours" class="text-right num">{{fixed hours 2}}</td>
+      <td data-label="Type">{{humanize ot_type}}</td>
+      <td data-label="Reason">{{reason}}</td>
+      <td data-label="Status">{{badge status}}</td>
+      <td data-label="Decision" style="min-width:260px">
+        {{#if (eq status "pending")}}
+          {{#if (eq supervisor_status "pending")}}<span class="badge badge--warning">Waiting for {{default supervisor_name "the immediate supervisor"}}</span>
+          {{else if (eq supervisor_decided_by @root.me.id)}}<span class="muted" style="font-size:12.5px">You approved it as the immediate supervisor; someone else gives the final approval</span>
+          {{else if own}}<span class="muted" style="font-size:12.5px">Another supervisor must decide</span>
+          {{else}}
+          <form method="POST" action="/overtime/{{id}}/decision" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            <input type="hidden" name="_csrf" value="{{../csrfToken}}">
+            <input class="input" name="remarks" placeholder="Remarks (required to reject)" maxlength="255" style="min-height:36px;flex:1 1 140px" aria-label="Remarks for {{name}}">
+            <button class="btn btn--primary btn--sm" type="submit" name="action" value="approve">Approve</button>
+            <button class="btn btn--danger btn--sm" type="submit" name="action" value="reject">Reject</button>
+          </form>{{/if}}
+          {{#if (eq supervisor_status "approved")}}<div class="muted" style="font-size:12.5px">✓ Supervisor: {{supervisor_name}}</div>{{/if}}
+        {{else}}<div>{{decided_by_name}}<br><span class="muted" style="font-size:12px">{{date decided_at}}{{#if decision_remarks}} · “{{decision_remarks}}”{{/if}}</span></div>{{/if}}
+      </td>
+    </tr>{{/each}}</tbody>
+  </table></div>
+  {{> pager meta=meta}}
+  {{else}}<div class="empty"><svg class="ic"><use href="#i-trending-up"/></svg>{{#if (eq status "pending")}}<strong>No overtime waiting</strong>You're all caught up.{{else}}<strong>No overtime records</strong>Try another filter.{{/if}}</div>{{/if}}
+</section>
+{{> app_shell_close}}

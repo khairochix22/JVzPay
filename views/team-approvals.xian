@@ -1,0 +1,30 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><h1>Team Approvals</h1><p>As the immediate supervisor or team leader, you approve your team's leave, overtime, attendance corrections and vacation leave conversions first. Approved requests go to Accounting/Payroll for the final approval; a rejection ends the request.</p></div>
+</div>
+
+<section class="card">
+  <div class="card__body card__body--flush">
+    {{#if rows.length}}<div class="table-wrap"><table class="table table--stack"><thead><tr><th>Employee</th><th>Request</th><th>Details</th><th class="actions"><span class="sr-only">Decision</span></th></tr></thead><tbody>
+    {{#each rows}}<tr><td class="cell-primary"><strong>{{name}}</strong><br><span class="muted">{{employee_no}} · {{department}}</span></td>
+      <td data-label="Request"><strong>{{kindLabel}}</strong><br><span class="muted">{{no}}</span></td>
+      <td data-label="Details">
+        {{#if (eq kind "leave")}}{{date start_date}}{{#if (ne start_date end_date)}} – {{date end_date}}{{/if}} · {{fixed days 1}} day(s){{#if reason}}<br><span class="muted">“{{reason}}”</span>{{/if}}{{/if}}
+        {{#if (eq kind "overtime")}}{{date work_date}}{{#if start_time}} · {{start_time}}–{{end_time}}{{/if}} · {{fixed hours 2}} h{{#if reason}}<br><span class="muted">“{{reason}}”</span>{{/if}}{{/if}}
+        {{#if (eq kind "attendance_correction")}}{{date work_date}} → {{humanize requested_status}}{{#if requested_time_in}} {{requested_time_in}}–{{requested_time_out}}{{/if}}{{#if reason}}<br><span class="muted">“{{reason}}”</span>{{/if}}{{/if}}
+        {{#if (eq kind "leave_conversion")}}{{fixed days 1}} day(s) of {{year}} vacation leave · {{money amount}}{{/if}}
+      </td>
+      <td class="actions" style="min-width:280px">
+        <form method="POST" action="/team/approvals/{{kind}}/{{id}}/decision" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <input type="hidden" name="_csrf" value="{{../csrfToken}}">
+          <input class="input" name="remarks" placeholder="Remarks (required to reject)" maxlength="255" style="min-height:36px;flex:1 1 140px" aria-label="Remarks for {{no}}">
+          <button class="btn btn--primary btn--sm" type="submit" name="action" value="approve">Approve</button>
+          <button class="btn btn--danger btn--sm" type="submit" name="action" value="reject">Reject</button>
+        </form>
+      </td></tr>{{/each}}
+    </tbody></table></div>
+    {{else}}<div class="empty"><svg class="ic"><use href="#i-users"/></svg><strong>Nothing to approve</strong>Requests from the people you supervise appear here.</div>{{/if}}
+  </div>
+</section>
+{{> app_shell_close}}

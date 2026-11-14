@@ -1,0 +1,22 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header"><div><h1>Adjustment Approvals</h1><p>Approved adjustments are included the next time the period is computed.</p></div></div>
+<section class="card">
+  <form class="toolbar" method="GET" action="/payroll/adjustments/review"><div class="input-group search"><svg class="ic"><use href="#i-search"/></svg><label class="sr-only" for="q">Search</label><input class="input" type="search" id="q" name="q" value="{{t.q}}" placeholder="Employee or adjustment no." data-autosubmit></div>
+    <select class="select" name="status" aria-label="Status" data-autosubmit>{{#each (array "pending" "approved" "rejected" "applied" "all")}}<option value="{{this}}" {{selected this ../status}}>{{humanize this}}</option>{{/each}}</select></form>
+  {{#if rows.length}}
+  <div class="table-wrap"><table class="table table--stack">
+    <thead><tr><th>Adjustment</th>{{sortTh meta "employee" "Employee"}}<th>Period</th><th class="text-right">Amount</th><th>Reason</th><th>Decision</th></tr></thead>
+    <tbody>{{#each rows}}<tr>
+      <td class="cell-primary"><strong>{{adjustment_no}}</strong><br><span class="muted">{{component_name}} ({{adjustment_type}}) · by {{submitted_by_name}}</span></td>
+      <td data-label="Employee"><div>{{name}}<br><span class="muted">{{employee_no}}</span></div></td>
+      <td data-label="Period">{{period_label}}</td>
+      <td data-label="Amount" class="text-right num">{{money amount}}</td>
+      <td data-label="Reason">{{reason}}</td>
+      <td data-label="Decision" style="min-width:260px">{{#if (eq status "pending")}}{{> decide_inline action=(concat "/payroll/adjustments/" id "/decision") csrf=../csrfToken own=own}}{{else}}<div>{{badge status}} {{decided_by_name}}{{#if decision_remarks}}<br><span class="muted" style="font-size:12px">“{{decision_remarks}}”</span>{{/if}}</div>{{/if}}</td>
+    </tr>{{/each}}</tbody>
+  </table></div>
+  {{> pager meta=meta}}
+  {{else}}<div class="empty"><svg class="ic"><use href="#i-edit"/></svg><strong>Nothing waiting</strong>You're all caught up.</div>{{/if}}
+</section>
+{{> app_shell_close}}

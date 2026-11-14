@@ -1,0 +1,27 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="breadcrumb"><a href="/settings/security">Security Monitor</a> / Sign-in History</div>
+<div class="page-header"><div><h1>Sign-in History</h1><p>Every sign-in, sign-out, failed attempt, lockout and password change, from the audit trail.</p></div></div>
+<section class="card">
+  <form class="toolbar" method="GET" action="/settings/security/sign-ins" role="search">
+    <div class="input-group search"><svg class="ic"><use href="#i-search"/></svg><label class="sr-only" for="q">Search</label><input class="input" type="search" id="q" name="q" value="{{t.q}}" placeholder="Name, email or IP address" data-autosubmit></div>
+    <select class="select" name="type" aria-label="Event" data-autosubmit><option value="">All events</option><option value="login" {{selected type "login"}}>Sign-ins</option><option value="logout" {{selected type "logout"}}>Sign-outs</option><option value="failed" {{selected type "failed"}}>Failed and locked</option><option value="password" {{selected type "password"}}>Password changes</option></select>
+    <input class="input" type="date" name="from" value="{{from}}" aria-label="From" style="width:auto">
+    <input class="input" type="date" name="to" value="{{to}}" aria-label="To" style="width:auto">
+    <button class="btn btn--secondary" type="submit">Filter</button>
+  </form>
+  {{#if rows.length}}
+  <div class="table-wrap"><table class="table table--stack">
+    <thead><tr>{{sortTh meta "time" "When"}}<th>Person</th><th>Event</th><th>IP address</th><th>Browser</th></tr></thead>
+    <tbody>{{#each rows}}<tr>
+      <td class="cell-primary nowrap"><strong>{{datetime created_at}}</strong></td>
+      <td data-label="Person">{{#if user_name}}{{user_name}}{{else}}<span class="muted">Unknown account</span>{{/if}}{{#if email}}<br><span class="muted">{{email}}</span>{{/if}}</td>
+      <td data-label="Event">{{#if (eq kind "failed")}}<span class="badge badge--danger">{{humanize action}}</span>{{else if (eq kind "login")}}<span class="badge badge--success">Sign-in</span>{{else if (eq kind "logout")}}<span class="badge badge--neutral">Sign-out</span>{{else}}<span class="badge badge--info">{{humanize action}}</span>{{/if}}</td>
+      <td data-label="IP address" class="num">{{default ip_address "—"}}</td>
+      <td data-label="Browser">{{device}}</td>
+    </tr>{{/each}}</tbody>
+  </table></div>
+  {{> pager meta=meta}}
+  {{else}}<div class="empty"><svg class="ic"><use href="#i-inbox"/></svg><strong>No events match</strong>Try another filter.</div>{{/if}}
+</section>
+{{> app_shell_close}}

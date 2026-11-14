@@ -1,0 +1,63 @@
+// Employee self-service ("My Workspace"). Every query is scoped to req.user.employee_id — no route parameter selects
+// another employee. URL map only; handlers live in controllers/self.
+import express from "express";
+import { requirePermission, requireEmployeeLink } from "../middleware/auth.js";
+import { optionalUpload } from "../middleware/upload.js";
+import * as myProfileController from "../controllers/self/myProfileController.js";
+import * as myPayslipsController from "../controllers/self/myPayslipsController.js";
+import * as myPayslipController from "../controllers/self/myPayslipController.js";
+import * as myAttendanceController from "../controllers/self/myAttendanceController.js";
+import * as myLeaveController from "../controllers/self/myLeaveController.js";
+import * as myBankController from "../controllers/self/myBankController.js";
+import * as myGovernmentController from "../controllers/self/myGovernmentController.js";
+import * as myBenefitsController from "../controllers/self/myBenefitsController.js";
+import * as myHolidaysController from "../controllers/self/myHolidaysController.js";
+import * as myOvertimeController from "../controllers/self/myOvertimeController.js";
+import * as myClockController from "../controllers/self/myClockController.js";
+import * as myScheduleController from "../controllers/self/myScheduleController.js";
+import * as myRetirementController from "../controllers/self/myRetirementController.js";
+import * as mySalaryLoanController from "../controllers/self/mySalaryLoanController.js";
+
+const r = express.Router();
+r.use(requireEmployeeLink);
+
+r.get("/profile", requirePermission("self.profile"), myProfileController.showProfile);
+r.post("/profile", requirePermission("self.profile"), myProfileController.updateContact);
+r.get("/payslips", requirePermission("self.payslips"), myPayslipsController.listPayslips);
+r.get("/payslips/:id(\\d+)", requirePermission("self.payslips"), myPayslipController.payslipPage);
+r.get("/payslips/:id(\\d+)/pdf", requirePermission("self.payslips"), myPayslipController.payslipPdf);
+r.get("/attendance", requirePermission("self.attendance"), myAttendanceController.showAttendance);
+r.post("/attendance/corrections", requirePermission("self.attendance"), optionalUpload("attachment"), myAttendanceController.requestCorrection);
+r.post("/attendance/corrections/:id(\\d+)/cancel", requirePermission("self.attendance"), myAttendanceController.cancelCorrection);
+r.get("/leave", requirePermission("self.leave"), myLeaveController.showLeave);
+r.post("/leave/applications", requirePermission("self.leave"), optionalUpload("attachment"), myLeaveController.applyLeave);
+r.post("/leave/applications/:id(\\d+)/cancel", requirePermission("self.leave"), myLeaveController.cancelLeave);
+r.post("/leave/conversion", requirePermission("self.leave"), myLeaveController.convert);
+r.post("/leave/conversion/:id(\\d+)/cancel", requirePermission("self.leave"), myLeaveController.cancelConversionRequest);
+r.get("/bank", requirePermission("self.bank"), myBankController.showBank);
+r.post("/bank/requests", requirePermission("self.bank"), optionalUpload("attachment"), myBankController.submitBankRequest);
+r.post("/bank/requests/:id(\\d+)/cancel", requirePermission("self.bank"), myBankController.cancelBankRequest);
+r.get("/government", requirePermission("self.enrollments"), myGovernmentController.page);
+r.post("/government/requests", requirePermission("self.enrollments"), optionalUpload("attachment"), myGovernmentController.submit);
+r.post("/government/requests/:id(\\d+)/cancel", requirePermission("self.enrollments"), myGovernmentController.cancel);
+r.get("/benefits", requirePermission("self.enrollments"), myBenefitsController.page);
+r.post("/benefits/dependents", requirePermission("self.enrollments"), optionalUpload("attachment"), myBenefitsController.addDependent);
+r.post("/benefits/enrollments", requirePermission("self.enrollments"), optionalUpload("attachment"), myBenefitsController.enroll);
+r.post("/benefits/:kind(dependent|benefit)/:id(\\d+)/cancel", requirePermission("self.enrollments"), myBenefitsController.cancel);
+r.get("/holidays", requirePermission("self.profile"), myHolidaysController.page);
+r.get("/overtime", requirePermission("self.overtime"), myOvertimeController.page);
+r.post("/overtime/applications", requirePermission("self.overtime"), myOvertimeController.apply);
+r.post("/overtime/applications/:id(\\d+)/cancel", requirePermission("self.overtime"), myOvertimeController.cancel);
+r.get("/clock", requirePermission("self.attendance"), myClockController.page);
+r.post("/clock/punch", requirePermission("self.attendance"), myClockController.punch);
+r.get("/schedule", requirePermission("self.attendance"), myScheduleController.page);
+r.get("/schedule/live", requirePermission("self.attendance"), myScheduleController.live);
+r.get("/retirement", requirePermission("self.retirement"), myRetirementController.page);
+r.post("/retirement/enroll", requirePermission("self.retirement"), myRetirementController.enroll);
+r.post("/retirement/withdrawals", requirePermission("self.retirement"), myRetirementController.withdraw);
+r.post("/retirement/withdrawals/:id(\\d+)/cancel", requirePermission("self.retirement"), myRetirementController.cancel);
+r.get("/loans", requirePermission("self.loans"), mySalaryLoanController.page);
+r.post("/loans", requirePermission("self.loans"), mySalaryLoanController.apply);
+r.post("/loans/:id(\\d+)/cancel", requirePermission("self.loans"), mySalaryLoanController.cancel);
+
+export default r;

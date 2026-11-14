@@ -1,0 +1,24 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><div class="breadcrumb"><a href="/accounting/banks">Bank Accounts</a> / Reconciliation</div><h1>{{r.bank_name}} ••••{{r.account_last4}}</h1><p>Statement of {{date r.statement_date}}. Tick every entry the bank statement shows; it balances when the statement and the cleared book balance agree.</p></div>
+  <div>{{badge r.status}}</div>
+</div>
+
+<div class="grid grid--kpi">
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-file-text"/></svg></div><div><div class="kpi__label">Statement balance</div><div class="kpi__value">{{money r.statement_balance}}</div><div class="kpi__hint">From the bank</div></div></div>
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-bank"/></svg></div><div><div class="kpi__label">Cleared book balance</div><div class="kpi__value">{{money cleared}}</div><div class="kpi__hint">Opening cleared {{money opening}} + ticked items</div></div></div>
+  <div class="kpi {{#if balanced}}kpi--success{{else}}kpi--warning{{/if}}"><div class="kpi__icon"><svg class="ic"><use href="#i-{{#if balanced}}check-circle{{else}}alert{{/if}}"/></svg></div><div><div class="kpi__label">Difference</div><div class="kpi__value">{{money difference}}</div><div class="kpi__hint">{{#if balanced}}It balances{{else}}Must be ₱0.00 to close{{/if}}</div></div></div>
+</div>
+
+<section class="card">
+  <form method="POST" action="/accounting/reconciliations/{{r.id}}">
+    <input type="hidden" name="_csrf" value="{{csrfToken}}">
+    <div class="table-wrap"><table class="table table--stack"><thead><tr><th>Cleared</th><th>Date</th><th>Entry</th><th class="text-right">Deposit</th><th class="text-right">Withdrawal</th></tr></thead><tbody>
+    {{#each lines}}<tr><td data-label="Cleared"><input type="checkbox" class="matrix__check" name="lines" value="{{id}}" aria-label="Cleared: {{entry_no}}" {{#if cleared}}checked{{/if}} {{#unless (eq ../r.status "open")}}disabled{{/unless}}></td><td data-label="Date" class="nowrap">{{date entry_date}}</td><td class="cell-primary"><strong>{{entry_no}}</strong><br><span class="muted">{{default description entry_description}}</span></td><td data-label="Deposit" class="text-right num">{{#if (gt debit 0)}}{{money debit}}{{/if}}</td><td data-label="Withdrawal" class="text-right num">{{#if (gt credit 0)}}{{money credit}}{{/if}}</td></tr>
+    {{else}}<tr><td colspan="5"><div class="empty empty--sm"><strong>No uncleared entries up to the statement date</strong></div></td></tr>{{/each}}
+    </tbody></table></div>
+    {{#if (eq r.status "open")}}<div class="card__footer"><span class="muted">Save to recalculate the difference.</span><div class="page-actions"><button class="btn btn--secondary" type="submit" name="finish" value="0">Save</button><button class="btn btn--primary" type="submit" name="finish" value="1">Save and close reconciliation</button></div></div>{{/if}}
+  </form>
+</section>
+{{> app_shell_close}}

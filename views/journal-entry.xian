@@ -1,0 +1,14 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header"><div><div class="breadcrumb"><a href="/accounting/journals">Journal Entries</a> / {{j.entry_no}}</div><h1>{{j.entry_no}} &nbsp;{{badge j.status}}</h1><p>{{j.description}}</p></div></div>
+{{#if j.reversed_by_no}}<div class="alert alert--warning"><svg class="ic"><use href="#i-alert"/></svg><div>Reversed by <a href="/accounting/journals/{{j.reversed_by_id}}">{{j.reversed_by_no}}</a>.</div></div>{{/if}}
+{{#if j.reverses_no}}<div class="alert alert--info"><svg class="ic"><use href="#i-info"/></svg><div>This entry reverses <a href="/accounting/journals/{{j.reverses_entry_id}}">{{j.reverses_no}}</a>.</div></div>{{/if}}
+<section class="card mb"><div class="card__body"><dl class="dl">
+  <dt>Entry date</dt><dd>{{date j.entry_date}}</dd><dt>Source</dt><dd>{{humanize j.source_type}} · {{humanize j.source_event}}</dd>
+  <dt>Prepared by</dt><dd>{{j.created_by_name}}</dd><dt>Posted by</dt><dd>{{default j.posted_by_name "Not posted"}}{{#if j.posted_at}} · {{datetime j.posted_at}}{{/if}}</dd>
+</dl></div></section>
+<section class="card"><div class="table-wrap"><table class="table"><thead><tr><th>Account</th><th>Note</th><th class="text-right">Debit</th><th class="text-right">Credit</th></tr></thead><tbody>
+  {{#each j.lines}}<tr><td><strong>{{code}}</strong> {{name}}</td><td class="muted">{{description}}</td><td class="text-right num">{{#if (ne debit "0.00")}}{{money debit}}{{/if}}</td><td class="text-right num">{{#if (ne credit "0.00")}}{{money credit}}{{/if}}</td></tr>{{/each}}
+  <tr><th colspan="2">Totals</th><th class="text-right num">{{money j.total_debit}}</th><th class="text-right num">{{money j.total_credit}}</th></tr>
+</tbody></table></div></section>
+{{> app_shell_close}}

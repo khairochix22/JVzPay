@@ -1,0 +1,80 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><h1>Salary Loan</h1><p>Borrow up to {{policy.maxMultiple}} months of your basic salary and pay it back through payroll every payday over {{#each policy.terms}}{{this}}{{#unless @last}}, {{/unless}}{{/each}} months, at {{interestPct}}% a month add-on interest.</p></div>
+</div>
+
+<div class="grid grid--kpi">
+  <div class="kpi {{#if eligible}}kpi--success{{else}}kpi--warning{{/if}}"><div class="kpi__icon"><svg class="ic"><use href="#i-{{#if eligible}}check-circle{{else}}info{{/if}}"/></svg></div><div><div class="kpi__label">Eligibility</div><div class="kpi__value">{{#if eligible}}Eligible{{else}}Not yet{{/if}}</div><div class="kpi__hint">{{months}} months of service · {{policy.minServiceMonths}} needed</div></div></div>
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-wallet"/></svg></div><div><div class="kpi__label">You may borrow up to</div><div class="kpi__value">{{money maxLoan}}</div><div class="kpi__hint">{{policy.maxMultiple}} × basic salary {{#if basic}}{{money basic.monthly}}{{/if}}</div></div></div>
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-calculator"/></svg></div><div><div class="kpi__label">Payday deduction limit</div><div class="kpi__value">{{policy.maxDeductionPercent}}%</div><div class="kpi__hint">of your payday basic pay</div></div></div>
+</div>
+
+{{#unless eligible}}<div class="alert alert--warning mb" role="status"><svg class="ic"><use href="#i-info"/></svg><div>{{#each reasons}}{{this}}{{#unless @last}}<br>{{/unless}}{{/each}}</div></div>{{/unless}}
+
+<div class="grid grid--2 mb">
+  <section class="card">
+    <div class="card__header"><div><h2>Apply</h2><p>Check the figures first, then apply.</p></div></div>
+    <div class="card__body">
+      {{#if errors.form}}<div class="alert alert--error" role="alert"><svg class="ic"><use href="#i-alert"/></svg><div>{{errors.form}}</div></div>{{/if}}
+      <form method="GET" action="/my/loans" class="form-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
+        <div class="field"><label for="q_principal">Amount</label><input class="input" id="q_principal" name="principal" value="{{form.principal}}" inputmode="decimal" placeholder="0.00"></div>
+        <div class="field"><label for="q_term">Term</label><select class="select" id="q_term" name="term_months">{{#each policy.terms}}<option value="{{this}}" {{selected this ../form.term_months}}>{{this}} months</option>{{/each}}</select></div>
+        <div class="field" style="align-self:end"><button class="btn btn--secondary" type="submit"><svg class="ic"><use href="#i-calculator"/></svg>Compute</button></div>
+      </form>
+      {{#if quote}}
+      <dl class="loan-quote">
+        <div><dt>Amount borrowed</dt><dd>{{money quote.principal}}</dd></div>
+        <div><dt>Interest ({{interestPct}}% × {{form.term_months}} months)</dt><dd>{{money quote.interest}}</dd></div>
+        <div><dt>Total to repay</dt><dd><strong>{{money quote.total}}</strong></dd></div>
+        <div><dt>Deducted every payday</dt><dd><strong>{{money quote.amortization}}</strong> × {{quote.paydays}} paydays</dd></div>
+      </dl>
+      {{#if quote.errors.length}}<div class="alert alert--warning" role="status"><svg class="ic"><use href="#i-info"/></svg><div>{{#each quote.errors}}{{this}}{{#unless @last}}<br>{{/unless}}{{/each}}</div></div>{{/if}}
+      {{/if}}
+      {{#if eligible}}
+      <form method="POST" action="/my/loans" novalidate style="margin-top:12px">
+        <input type="hidden" name="_csrf" value="{{csrfToken}}">
+        <div class="form-grid">
+          <div class="field"><label for="principal">Amount <span class="req" aria-hidden="true">*</span></label><input class="input" id="principal" name="principal" value="{{form.principal}}" inputmode="decimal" placeholder="0.00">{{#if errors.principal}}<span class="field__error">{{errors.principal}}</span>{{/if}}</div>
+          <div class="field"><label for="term_months">Term <span class="req" aria-hidden="true">*</span></label><select class="select" id="term_months" name="term_months">{{#each policy.terms}}<option value="{{this}}" {{selected this ../form.term_months}}>{{this}} months</option>{{/each}}</select>{{#if errors.term_months}}<span class="field__error">{{errors.term_months}}</span>{{/if}}</div>
+          <div class="field span-2"><label for="purpose">Purpose <span class="req" aria-hidden="true">*</span></label><input class="input" id="purpose" name="purpose" value="{{form.purpose}}" maxlength="255" placeholder="What the loan is for">{{#if errors.purpose}}<span class="field__error">{{errors.purpose}}</span>{{/if}}</div>
+        </div>
+        <p class="muted">By applying you authorise payroll to deduct the payday amount until the loan is paid, and to deduct any balance from your final pay if you leave the company.</p>
+        <div class="form-actions"><button class="btn btn--primary" type="submit"><svg class="ic"><use href="#i-send"/></svg>Apply for the loan</button></div>
+      </form>
+      {{/if}}
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card__header"><div><h2>Policy</h2></div></div>
+    <div class="card__body">
+      <ul class="policy-list">
+        <li>For {{#each policy.eligibleTypes}}{{humanize this}}{{#unless @last}}, {{/unless}}{{/each}} employees with at least {{policy.minServiceMonths}} months of service.</li>
+        <li>From {{money policy.minAmount}} up to {{policy.maxMultiple}} months of basic salary.</li>
+        <li>{{#each policy.terms}}{{this}}{{#unless @last}}, {{/unless}}{{/each}} months to pay, {{interestPct}}% a month add-on interest.</li>
+        <li>Repaid by payroll deduction every payday; the deduction may not exceed {{policy.maxDeductionPercent}}% of your payday basic pay.</li>
+        <li>One loan at a time; you can borrow again once it is paid.</li>
+        <li>Approved by Accounting/Payroll Staff or the Accounting Supervisor, then released by Payroll.</li>
+        <li>Any balance left when you leave the company is deducted from your final pay.</li>
+      </ul>
+    </div>
+  </section>
+</div>
+
+<section class="card">
+  <div class="card__header"><div><h2>My loans</h2></div></div>
+  <div class="card__body card__body--flush">
+    {{#if loans.length}}<div class="table-wrap"><table class="table table--stack"><thead><tr><th>Loan</th><th class="text-right">Borrowed</th><th class="text-right">Total</th><th class="text-right">Per payday</th><th>Repaid</th><th>Status</th><th class="actions"><span class="sr-only">Actions</span></th></tr></thead><tbody>
+    {{#each loans}}<tr><td class="cell-primary"><strong>{{loan_no}}</strong><br><span class="muted">{{term_months}} months · {{date requested_at}} · {{purpose}}</span></td>
+      <td data-label="Borrowed" class="text-right num">{{money principal}}</td>
+      <td data-label="Total" class="text-right num">{{money total_payable}}</td>
+      <td data-label="Per payday" class="text-right num">{{money amortization}} × {{paydays}}</td>
+      <td data-label="Repaid" style="min-width:140px">{{#if pay_item_id}}<div class="meter" role="img" aria-label="{{this.pct}}% repaid"><span style="width:{{this.pct}}%"></span></div><small class="muted">{{money paid}} paid · {{money remaining_balance}} left</small>{{else}}—{{/if}}</td>
+      <td data-label="Status">{{badge status}}{{#if decision_remarks}}<br><span class="muted">“{{decision_remarks}}”</span>{{/if}}{{#if release_reference}}<br><span class="muted">Released: {{release_reference}}</span>{{/if}}</td>
+      <td class="actions">{{#if (eq status "pending")}}<form method="POST" action="/my/loans/{{id}}/cancel"><input type="hidden" name="_csrf" value="{{../csrfToken}}"><button class="btn btn--secondary btn--sm" type="submit">Cancel</button></form>{{/if}}</td></tr>{{/each}}
+    </tbody></table></div>
+    {{else}}<div class="empty empty--sm"><svg class="ic"><use href="#i-wallet"/></svg><strong>No loans yet</strong></div>{{/if}}
+  </div>
+</section>
+{{> app_shell_close}}

@@ -1,0 +1,8 @@
+{{#if href}}<a class="kpi {{#if tone}}kpi--{{tone}}{{/if}}" href="{{href}}">{{else}}<div class="kpi {{#if tone}}kpi--{{tone}}{{/if}}">{{/if}}
+  <div class="kpi__icon"><svg class="ic"><use href="#i-{{icon}}"/></svg></div>
+  <div>
+    <div class="kpi__label">{{label}}</div>
+    <div class="kpi__value">{{value}}</div>
+    <div class="kpi__hint">{{hint}}</div>
+  </div>
+{{#if href}}</a>{{else}}</div>{{/if}}

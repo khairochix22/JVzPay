@@ -1,0 +1,30 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><h1>Leave Requests</h1><p>{{#if canDecide}}Review employees' leave applications. Approving deducts the days from their balance and marks attendance as on leave.{{else}}Employees' leave applications (view only).{{/if}}</p></div>
+  <div class="page-actions"><a class="btn btn--secondary" href="/leave-calendar"><svg class="ic"><use href="#i-calendar"/></svg>Calendar</a></div>
+</div>
+<section class="card">
+  <form class="toolbar" method="GET" action="/leave-requests" role="search">
+    <div class="input-group search"><svg class="ic"><use href="#i-search"/></svg><label class="sr-only" for="q">Search</label>
+      <input class="input" type="search" id="q" name="q" value="{{t.q}}" placeholder="Employee or application no." data-autosubmit></div>
+    <select class="select" name="status" aria-label="Status" data-autosubmit>{{#each (array "pending" "approved" "rejected" "cancelled" "all")}}<option value="{{this}}" {{selected this ../status}}>{{humanize this}}</option>{{/each}}</select>
+  </form>
+  {{#if rows.length}}
+  <div class="table-wrap"><table class="table table--stack">
+    <thead><tr>{{sortTh meta "employee" "Employee"}}<th>Application</th><th>Type</th>{{sortTh meta "start" "Dates"}}<th class="text-right">Days</th>{{sortTh meta "submitted" "Filed"}}<th>Status</th><th class="actions"><span class="sr-only">Actions</span></th></tr></thead>
+    <tbody>{{#each rows}}<tr>
+      <td class="cell-primary"><strong>{{name}}</strong><br><span class="muted">{{employee_no}} · {{department}}</span></td>
+      <td data-label="Application"><div>{{application_no}}{{#if attachment_id}}<br><span class="muted" style="font-size:12px">with document</span>{{/if}}</div></td>
+      <td data-label="Type"><div>{{type_name}}{{#unless is_paid}}<br><span class="muted" style="font-size:12px">unpaid</span>{{/unless}}</div></td>
+      <td data-label="Dates" class="nowrap">{{date start_date}}{{#if (ne start_date end_date)}} – {{date end_date}}{{/if}}</td>
+      <td data-label="Days" class="text-right num">{{fixed days 1}}</td>
+      <td data-label="Filed" class="nowrap">{{timeAgo submitted_at}}</td>
+      <td data-label="Status">{{badge status}}{{#if (eq status "pending")}}{{> sup_step}}{{/if}}</td>
+      <td class="actions"><a class="btn {{#if (and (eq status "pending") ../canDecide)}}btn--primary{{else}}btn--secondary{{/if}} btn--sm" href="/leave-requests/{{id}}">{{#if (and (eq status "pending") ../canDecide)}}Review{{else}}View{{/if}}</a></td>
+    </tr>{{/each}}</tbody>
+  </table></div>
+  {{> pager meta=meta}}
+  {{else}}<div class="empty"><svg class="ic"><use href="#i-calendar"/></svg>{{#if (eq status "pending")}}<strong>No pending leave applications</strong>You're all caught up.{{else}}<strong>No applications match</strong>Try another status or search.{{/if}}</div>{{/if}}
+</section>
+{{> app_shell_close}}

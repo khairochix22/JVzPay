@@ -1,0 +1,68 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><h1>My Schedule</h1><p>Your schedule as HR plotted it. HR can change any day, days off included. Click a day to see its shift, breaks and lunch. Approved overtime appears by itself.</p></div>
+  <div class="page-actions"><a class="btn btn--secondary" href="/my/schedule?month={{prev}}" aria-label="Previous month"><svg class="ic"><use href="#i-chevron-left"/></svg></a><a class="btn btn--secondary" href="/my/schedule">Today</a><a class="btn btn--secondary" href="/my/schedule?month={{next}}" aria-label="Next month"><svg class="ic"><use href="#i-chevron-right"/></svg></a></div>
+</div>
+
+<div class="grid grid--kpi">
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-calendar"/></svg></div><div><div class="kpi__label">{{monthLabel}}</div><div class="kpi__value">{{summary.workDays}}</div><div class="kpi__hint">work days</div></div></div>
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-user"/></svg></div><div><div class="kpi__label">Days off</div><div class="kpi__value">{{summary.daysOff}}</div><div class="kpi__hint">this month</div></div></div>
+  <div class="kpi {{#if summary.otHours}}kpi--success{{/if}}"><div class="kpi__icon"><svg class="ic"><use href="#i-trending-up"/></svg></div><div><div class="kpi__label">Approved overtime</div><div class="kpi__value">{{fixed summary.otHours 2}} h</div><div class="kpi__hint"><a href="/my/overtime">Apply for overtime</a></div></div></div>
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-check-circle"/></svg></div><div><div class="kpi__label">Plotted by HR</div><div class="kpi__value">{{summary.plotted}}</div><div class="kpi__hint">days; the rest follow the company default</div></div></div>
+</div>
+
+<div class="sched-layout" data-live-schedule="/my/schedule/live?month={{month}}" data-stamp="{{stampHash}}">
+  <section class="card">
+    <div class="card__header"><div><h2>{{monthLabel}}</h2></div></div>
+    <div class="card__body">
+      <div class="mcal" role="grid" aria-label="{{monthLabel}}">
+        <div class="mcal__row mcal__row--head" role="row">{{#each weekdays}}<div class="mcal__wd" role="columnheader">{{this}}</div>{{/each}}</div>
+        {{#each weeks}}
+        <div class="mcal__row" role="row">
+          {{#each this}}
+          <a role="gridcell" href="/my/schedule?month={{@root.month}}&amp;date={{this.date}}#day" class="mcal__cell{{#unless inMonth}} mcal__cell--out{{/unless}}{{#if sched.dayOff}} mcal__cell--off{{/if}}{{#if nonWorkingHoliday}} mcal__cell--holiday{{/if}}{{#if today}} mcal__cell--today{{/if}}{{#if selected}} mcal__cell--selected{{/if}}" {{#if selected}}aria-current="date"{{/if}} aria-label="{{label}}">
+            <span class="mcal__num">{{dayNo}}</span>
+            {{#if sched.dayOff}}<span class="mcal__state">Day off</span>
+            {{else if nonWorkingHoliday}}<span class="mcal__state">Holiday</span>
+            {{else}}<span class="mcal__shift">{{sched.shift_start}}–{{sched.shift_end}}</span>{{/if}}
+            {{#if holiday}}<span class="mcal__tag mcal__tag--info">{{holiday.name}}</span>{{/if}}
+            {{#if leave}}<span class="mcal__tag {{#if (eq leave.status "approved")}}mcal__tag--info{{else}}mcal__tag--warn{{/if}}">{{leave.type_name}}</span>{{/if}}
+            {{#each ot}}<span class="mcal__tag {{#if approved}}mcal__tag--ok{{else}}mcal__tag--warn{{/if}}">OT {{fixed hours 1}}h{{#unless approved}}?{{/unless}}</span>{{/each}}
+          </a>
+          {{/each}}
+        </div>
+        {{/each}}
+      </div>
+      <p class="muted mcal__legend"><span class="mcal__key mcal__key--off"></span> Day off <span class="mcal__key mcal__key--ok"></span> Approved overtime <span class="mcal__key mcal__key--warn"></span> Pending</p>
+    </div>
+  </section>
+
+  <section class="card" id="day" aria-live="polite">
+    <div class="card__header"><div><h2>{{day.label}}</h2><p class="muted">{{#if (eq day.sched.source "hr")}}Plotted by HR{{else}}Company default (HR has not plotted this day){{/if}}{{#if day.sched.remarks}} · {{day.sched.remarks}}{{/if}}</p></div></div>
+    <div class="card__body">
+      {{#if day.sched.dayOff}}
+        <div class="empty empty--sm"><svg class="ic"><use href="#i-calendar"/></svg><strong>Day off</strong>{{#if day.approvedOtHours}}<span class="muted">Approved rest-day overtime below.</span>{{/if}}</div>
+      {{else}}
+      {{#if day.nonWorkingHoliday}}<div class="alert alert--info" role="status"><svg class="ic"><use href="#i-info"/></svg><div>{{day.holiday.name}} — {{humanize day.holiday.holiday_type}}.</div></div>{{/if}}
+      <ol class="timeline">
+        <li><span class="timeline__time">{{day.sched.shift_start}}</span><span><strong>Start of shift</strong> — punch Morning in</span></li>
+        <li class="timeline__break"><span class="timeline__time">{{day.sched.am_break_start}}–{{day.sched.am_break_end}}</span><span><strong>Morning break</strong> · {{day.sched.breakMinutes}} min, paid · punch out and back in</span></li>
+        <li class="timeline__lunch"><span class="timeline__time">{{day.sched.lunch_start}}–{{day.sched.lunch_end}}</span><span><strong>Lunch</strong> · {{day.sched.lunchMinutes}} min, unpaid · punch Morning out and Afternoon in</span></li>
+        <li class="timeline__break"><span class="timeline__time">{{day.sched.pm_break_start}}–{{day.sched.pm_break_end}}</span><span><strong>Afternoon break</strong> · {{day.sched.breakMinutes}} min, paid · punch out and back in</span></li>
+        <li><span class="timeline__time">{{day.sched.shift_end}}</span><span><strong>End of shift</strong> — punch Afternoon out{{#if day.endsAt}}; with approved overtime you end at <strong>{{day.endsAt}}</strong>{{/if}}</span></li>
+      </ol>
+      <p class="muted">Every minute past a break or lunch is lost time, deducted from your pay and shown on your payslip as lost hours.</p>
+      {{/if}}
+      {{#if day.leave}}<p><span class="badge {{#if (eq day.leave.status "approved")}}badge--info{{else}}badge--warning{{/if}}">{{day.leave.type_name}} · {{humanize day.leave.status}}</span> {{day.leave.application_no}}</p>{{/if}}
+      {{#each day.ot}}<p><span class="badge {{#if approved}}badge--success{{else}}badge--warning{{/if}}">Overtime {{#if start}}{{start}}–{{end}}{{/if}} · {{fixed hours 2}} h · {{#if approved}}approved{{else}}pending{{/if}}</span>{{#if approved}}{{#if approver_name}} <span class="muted">by {{approver_name}}</span>{{/if}}{{/if}}</p>{{/each}}
+      {{#if day.attendance}}
+      <div class="mcal__att"><strong>Your attendance</strong> {{badge day.attendance.status}}{{#if day.attendance.time_in}} {{day.attendance.time_in}}–{{default day.attendance.time_out "…"}}{{/if}}
+        <br><span class="muted">{{fixed day.attendance.hours_worked 2}} h · late {{day.attendance.late_minutes}} min · undertime {{day.attendance.undertime_minutes}} min · lost (breaks/lunch) {{day.attendance.overbreak_minutes}} min</span></div>
+      {{/if}}
+      {{#if day.today}}<p><a class="btn btn--primary" href="/my/clock"><svg class="ic"><use href="#i-clock"/></svg>Open the time clock</a></p>{{/if}}
+    </div>
+  </section>
+</div>
+<script src="/js/schedule-live.js"></script>
+{{> app_shell_close}}

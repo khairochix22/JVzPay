@@ -1,0 +1,18 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header"><div><h1>Announcements</h1><p>Published announcements appear on dashboards and are sent as notifications.</p></div></div>
+<div class="grid grid--main-side">
+  <section class="card" style="align-self:start">{{#if rows.length}}<ul class="list">{{#each rows}}<li class="list__item {{#unless is_active}}is-read{{/unless}}"><span class="dot"></span><div class="list__body"><strong>{{title}}</strong><small>{{body}}</small><br><small>{{humanize audience}} · {{published_by_name}} · {{datetime published_at}}{{#if expires_at}} · until {{date expires_at}}{{/if}}</small></div>
+    {{#if is_active}}<form method="POST" action="/settings/announcements/{{id}}/withdraw" data-confirm="Withdraw this announcement?" data-confirm-label="Withdraw"><input type="hidden" name="_csrf" value="{{../csrfToken}}"><button class="btn btn--ghost btn--sm" type="submit">Withdraw</button></form>{{else}}{{badge "inactive"}}{{/if}}</li>{{/each}}</ul>
+    {{else}}<div class="empty"><svg class="ic"><use href="#i-bell"/></svg><strong>No announcements yet</strong>Publish the first one using the form.</div>{{/if}}</section>
+  <section class="card" style="align-self:start"><div class="card__header"><h2>Publish</h2></div>
+    <form class="card__body" method="POST" action="/settings/announcements" novalidate><input type="hidden" name="_csrf" value="{{csrfToken}}">
+      <div class="grid" style="gap:14px">
+        {{> field name="title" label="Title" required=true}}
+        <div class="field"><label for="body">Message <span class="req">*</span></label><textarea class="textarea" id="body" name="body" maxlength="2000" required></textarea></div>
+        <div class="field"><label for="audience">Audience <span class="req">*</span></label><select class="select" id="audience" name="audience"><option value="all">Everyone</option><option value="staff">Staff only</option><option value="employees">Employees only</option></select></div>
+        {{> field name="expires_at" label="Show until" type="date"}}
+        <button class="btn btn--primary" type="submit"><svg class="ic"><use href="#i-send"/></svg>Publish</button>
+      </div></form></section>
+</div>
+{{> app_shell_close}}

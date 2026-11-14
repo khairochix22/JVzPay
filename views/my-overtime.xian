@@ -1,0 +1,40 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><h1>My Overtime</h1><p>Apply for overtime and follow your supervisor's decision. Only approved hours are paid, at the overtime rates in payroll settings.</p></div>
+</div>
+
+<div class="grid grid--kpi">
+  <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-check-circle"/></svg></div><div><div class="kpi__label">Approved this month</div><div class="kpi__value">{{fixed approvedMonth 2}} h</div><div class="kpi__hint">Validated for payroll</div></div></div>
+  <div class="kpi {{#if pending}}kpi--warning{{/if}}"><div class="kpi__icon"><svg class="ic"><use href="#i-clock"/></svg></div><div><div class="kpi__label">Waiting for a decision</div><div class="kpi__value">{{pending}}</div><div class="kpi__hint">{{#if viaHr}}Decided by your department supervisor through HR{{else}}Decided by the Accounting Supervisor{{/if}}</div></div></div>
+</div>
+
+<section class="card mb">
+  <div class="card__header"><div><h2>Apply for overtime</h2></div></div>
+  <form class="card__body" method="POST" action="/my/overtime/applications" novalidate>
+    <input type="hidden" name="_csrf" value="{{csrfToken}}">
+    {{#if errors.form}}<div class="alert alert--error" role="alert"><svg class="ic"><use href="#i-alert"/></svg><div>{{errors.form}}</div></div>{{/if}}
+    <div class="form-grid" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
+      {{> field name="work_date" label="Date" type="date" required=true value=form.work_date error=errors.work_date}}
+      {{> field name="start_time" label="Start" type="time" required=true value=form.start_time error=errors.start_time}}
+      {{> field name="end_time" label="End" type="time" required=true value=form.end_time error=errors.end_time}}
+      <div class="span-2">{{> field name="reason" label="Reason" required=true value=form.reason error=errors.reason placeholder="What needs the extra time"}}</div>
+    </div>
+    <div class="form-actions"><button class="btn btn--primary" type="submit"><svg class="ic"><use href="#i-send"/></svg>Submit</button></div>
+  </form>
+</section>
+
+<section class="card">
+  <div class="card__header"><div><h2>History</h2></div></div>
+  <div class="card__body card__body--flush">
+    {{#if rows.length}}<div class="table-wrap"><table class="table table--stack"><thead><tr><th>Date</th><th>Time</th><th class="text-right">Hours</th><th>Status</th><th class="actions"><span class="sr-only">Actions</span></th></tr></thead><tbody>
+    {{#each rows}}<tr><td class="cell-primary"><strong>{{date work_date}}</strong><br><span class="muted">{{#if request_no}}{{request_no}} · {{/if}}{{#if (eq source "employee")}}applied by you{{else}}encoded by Payroll{{/if}} · {{humanize ot_type}}</span></td>
+      <td data-label="Time">{{#if start_time}}{{start_time}}–{{end_time}}{{else}}—{{/if}}</td>
+      <td data-label="Hours" class="text-right num">{{fixed hours 2}}</td>
+      <td data-label="Status">{{badge status}}{{> sup_step}}{{#if approver_name}}<br><span class="muted">by {{approver_name}}</span>{{/if}}{{#if decision_remarks}}<br><span class="muted">“{{decision_remarks}}”</span>{{/if}}</td>
+      <td class="actions">{{#if (and (eq status "pending") (eq source "employee"))}}<form method="POST" action="/my/overtime/applications/{{id}}/cancel"><input type="hidden" name="_csrf" value="{{../csrfToken}}"><button class="btn btn--secondary btn--sm" type="submit">Cancel</button></form>{{/if}}</td></tr>{{/each}}
+    </tbody></table></div>
+    {{else}}<div class="empty empty--sm"><svg class="ic"><use href="#i-trending-up"/></svg><strong>No overtime yet</strong></div>{{/if}}
+  </div>
+</section>
+{{> app_shell_close}}

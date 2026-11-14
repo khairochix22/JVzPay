@@ -1,0 +1,51 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header">
+  <div><h1>Encode Attendance</h1><p>Shift {{time shiftStart}}–{{time shiftEnd}} · grace {{cfg.grace}} min. Late, undertime and hours are computed automatically when you save.</p></div>
+</div>
+
+<form class="card mb" method="GET" action="/attendance/encode" style="padding:14px 18px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+  <div class="field"><label for="d">Date</label><input class="input" type="date" id="d" name="date" value="{{this.date}}" max="{{today}}" data-autosubmit-date></div>
+  <div class="field"><label for="dept">Department</label><select class="select" id="dept" name="department"><option value="">All departments</option>{{#each departments}}<option value="{{id}}" {{selected id ../department}}>{{name}}</option>{{/each}}</select></div>
+  <button class="btn btn--secondary" type="submit">Load sheet</button>
+  <div style="margin-left:auto">
+    {{#if holiday}}<span class="badge badge--info">Holiday: {{holiday.name}} ({{humanize holiday.holiday_type}})</span>{{/if}}
+    {{#if isRestDay}}<span class="badge badge--neutral">Weekly rest day</span>{{/if}}
+  </div>
+</form>
+
+<form class="card" method="POST" action="/attendance/encode" novalidate>
+  <input type="hidden" name="_csrf" value="{{csrfToken}}">
+  <input type="hidden" name="date" value="{{this.date}}">
+  <input type="hidden" name="department" value="{{department}}">
+  <div class="card__header"><div><h2>{{date date}}</h2><p>{{rows.length}} employee(s). Leave a row's status empty to skip it. Saving an existing record sends it back for validation.</p></div></div>
+  {{#if rows.length}}
+  <div class="table-wrap" style="margin-top:12px"><table class="table table--stack">
+    <thead><tr><th>Employee</th><th>Status</th><th>Time in</th><th>Time out</th><th>Remarks</th><th>Current</th></tr></thead>
+    <tbody>
+      {{#each rows}}
+      <tr>
+        <td class="cell-primary"><strong>{{name}}</strong><br><span class="muted">{{employee_no}} · {{position}}{{#if leave_name}} · <span class="badge badge--info">{{leave_name}}</span>{{/if}}</span>
+          {{#if (lookup ../errors id)}}<div class="field__error">{{lookup ../errors id}}</div>{{/if}}</td>
+        {{#if locked}}
+        <td data-label="Status" colspan="4"><span class="muted"><svg class="ic ic--sm" style="vertical-align:-3px"><use href="#i-lock"/></svg> Locked by finalized payroll — {{humanize status}} {{time time_in}}–{{time time_out}}</span></td>
+        {{else}}
+        <td data-label="Status">
+          <select class="select" name="rows[e{{id}}][status]" aria-label="Status for {{name}}" style="min-width:130px">
+            <option value="">—</option>
+            {{#each ../statuses}}<option value="{{this}}" {{selected this ../value.status}}>{{humanize this}}</option>{{/each}}
+          </select>
+        </td>
+        <td data-label="Time in"><input class="input" type="time" name="rows[e{{id}}][time_in]" value="{{value.time_in}}" aria-label="Time in for {{name}}"></td>
+        <td data-label="Time out"><input class="input" type="time" name="rows[e{{id}}][time_out]" value="{{value.time_out}}" aria-label="Time out for {{name}}"></td>
+        <td data-label="Remarks"><input class="input" name="rows[e{{id}}][remarks]" value="{{value.remarks}}" maxlength="255" aria-label="Remarks for {{name}}"></td>
+        {{/if}}
+        <td data-label="Current"><div>{{#if record_id}}{{badge validation_status}}<br><span class="muted" style="font-size:12px">{{late_minutes}} late · {{undertime_minutes}} UT · {{fixed hours_worked 2}} h</span>{{else}}<span class="muted">Not encoded</span>{{/if}}</div></td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table></div>
+  <div class="card__footer"><span class="muted" style="font-size:13px">Times use the 24-hour clock of your device. Overtime is filed separately under Overtime.</span><button class="btn btn--primary" type="submit">Save attendance</button></div>
+  {{else}}<div class="empty"><svg class="ic"><use href="#i-users"/></svg><strong>No active employees</strong>Add employees first, or choose another department.</div>{{/if}}
+</form>
+{{> app_shell_close}}

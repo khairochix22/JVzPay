@@ -1,0 +1,14 @@
+<section class="auth__hero" aria-hidden="true">
+  <div class="auth__brand">
+    <img class="auth__logo logo-glow" src="/img/johnvivz-logo-trim.png" alt="" width="230" height="124">
+    <span class="auth__product">JVzPay<small>Manage · Pay · Grow</small></span>
+  </div>
+  <div class="auth__pitch">
+    <h2>{{headline}}{{#if headline2}}<br>{{headline2}}{{/if}}</h2>
+    <p>{{lead}}</p>
+    {{> @partial-block}}
+  </div>
+  <div class="auth__foot">
+    <span>{{company.name}}<br>{{company.address}}</span>
+  </div>
+</section>

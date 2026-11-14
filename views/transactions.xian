@@ -1,0 +1,46 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="page-header"><div><h1>{{title}}</h1><p>{{#if (eq type "expense")}}Operating expenses and receipts. Payroll expense is posted automatically by payroll and must not be entered here.{{else}}Business income and its supporting documents.{{/if}}</p></div>
+  <div class="kpi" style="padding:10px 16px"><div><div class="kpi__label">Posted in this view</div><div class="kpi__value" style="font-size:20px">{{money postedTotal}}</div></div></div></div>
+{{#if canRecord}}
+<section class="card mb">
+  <div class="card__header"><div><h2>Record {{#if (eq type "expense")}}an expense{{else}}income{{/if}}</h2>{{#if prepares}}<p>Your entry goes to the Accounting Supervisor for approval before it is posted.</p>{{/if}}</div></div>
+  <form class="card__body" method="POST" action="{{path}}" enctype="multipart/form-data" novalidate>
+    <input type="hidden" name="_csrf" value="{{csrfToken}}">
+    {{#if errors.form}}<div class="alert alert--error" role="alert"><svg class="ic"><use href="#i-alert"/></svg><div>{{errors.form}}</div></div>{{/if}}
+    <div class="form-grid" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr))">
+      <div class="field"><label for="category_id">Category <span class="req">*</span></label><select class="select" id="category_id" name="category_id" {{#if errors.category_id}}aria-invalid="true"{{/if}}><option value="">Select</option>{{#each categories}}<option value="{{id}}" {{selected id ../form.category_id}}>{{name}}</option>{{/each}}</select>{{#if errors.category_id}}<span class="field__error">{{errors.category_id}}</span>{{/if}}</div>
+      {{> field name="txn_date" label="Date" type="date" required=true value=form.txn_date error=errors.txn_date}}
+      {{> field name="amount" label="Amount (₱)" required=true value=form.amount error=errors.amount inputmode="decimal"}}
+      <div class="field"><label for="payment_method">Payment method <span class="req">*</span></label><select class="select" id="payment_method" name="payment_method">{{#each methods}}<option value="{{this}}" {{selected this ../form.payment_method}}>{{humanize this}}</option>{{/each}}</select></div>
+      <div class="span-2">{{> field name="description" label="Description" required=true value=form.description error=errors.description}}</div>
+      {{> field name="reference_no" label="Reference no." value=form.reference_no error=errors.reference_no placeholder="OR / invoice no."}}
+      <div class="field"><label for="attachment">{{#if (eq type "expense")}}Receipt{{else}}Supporting document{{/if}}</label><input class="input" type="file" id="attachment" name="attachment" accept=".pdf,.jpg,.jpeg,.png">{{#if errors.attachment}}<span class="field__error">{{errors.attachment}}</span>{{/if}}</div>
+    </div>
+    <div class="form-actions"><button class="btn btn--primary" type="submit">{{#if prepares}}Submit for approval{{else}}Record and post{{/if}}</button></div>
+  </form>
+</section>
+{{/if}}
+<section class="card">
+  <form class="toolbar" method="GET" action="{{path}}"><div class="input-group search"><svg class="ic"><use href="#i-search"/></svg><label class="sr-only" for="q">Search</label><input class="input" type="search" id="q" name="q" value="{{t.q}}" placeholder="Description, no. or reference" data-autosubmit></div>
+    <input class="input" style="width:auto" type="date" name="from" value="{{from}}" aria-label="From date"><input class="input" style="width:auto" type="date" name="to" value="{{to}}" aria-label="To date">
+    <select class="select" name="category" aria-label="Category" data-autosubmit><option value="">All categories</option>{{#each categories}}<option value="{{id}}" {{selected id ../category}}>{{name}}</option>{{/each}}</select>
+    <select class="select" name="status" aria-label="Status" data-autosubmit><option value="">All statuses</option>{{#each (array "posted" "pending_approval" "rejected" "voided")}}<option value="{{this}}" {{selected this ../status}}>{{humanize this}}</option>{{/each}}</select>
+    <button class="btn btn--secondary" type="submit">Apply</button></form>
+  {{#if rows.length}}
+  <div class="table-wrap"><table class="table table--stack">
+    <thead><tr><th>Record</th>{{sortTh meta "date" "Date"}}<th>Category</th><th>Method</th>{{sortTh meta "amount" "Amount"}}{{sortTh meta "status" "Status"}}<th class="actions"><span class="sr-only">Actions</span></th></tr></thead>
+    <tbody>{{#each rows}}<tr>
+      <td class="cell-primary"><strong>{{txn_no}}</strong> {{description}}<br><span class="muted">{{created_by_name}}{{#if reference_no}} · {{reference_no}}{{/if}}{{#if attachment_id}} · <a href="/documents/{{attachment_id}}" target="_blank" rel="noopener">{{attachment_name}}</a>{{/if}}{{#if journal_entry_id}} · <a href="/accounting/journals/{{journal_entry_id}}">{{entry_no}}</a>{{/if}}</span></td>
+      <td data-label="Date" class="nowrap">{{date txn_date}}</td>
+      <td data-label="Category">{{category_name}}</td>
+      <td data-label="Method">{{humanize payment_method}}</td>
+      <td data-label="Amount" class="text-right num"><strong>{{money amount}}</strong></td>
+      <td data-label="Status"><div>{{badge status}}{{#if void_reason}}<br><span class="muted" style="font-size:12px">“{{void_reason}}”</span>{{/if}}{{#if decision_remarks}}<br><span class="muted" style="font-size:12px">“{{decision_remarks}}”</span>{{/if}}</div></td>
+      <td class="actions">{{#if (and ../canVoid (eq status "posted"))}}<details><summary class="btn btn--ghost btn--sm" style="display:inline-flex">Void</summary><form method="POST" action="{{../path}}/{{id}}/void" style="display:flex;gap:6px;margin-top:6px"><input type="hidden" name="_csrf" value="{{../csrfToken}}"><input class="input" name="reason" placeholder="Reason" style="min-height:36px" aria-label="Reason" required><button class="btn btn--danger btn--sm" type="submit">Void</button></form></details>{{/if}}</td>
+    </tr>{{/each}}</tbody>
+  </table></div>
+  {{> pager meta=meta}}
+  {{else}}<div class="empty"><svg class="ic"><use href="#i-receipt"/></svg><strong>No records</strong>Nothing matches the current filters.</div>{{/if}}
+</section>
+{{> app_shell_close}}

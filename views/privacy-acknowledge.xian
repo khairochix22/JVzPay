@@ -1,0 +1,15 @@
+{{> app_head}}
+{{> app_shell_open}}
+<div class="alert alert--info"><svg class="ic"><use href="#i-shield"/></svg><div>Before you continue, please read how {{company.name}} handles your personal information.</div></div>
+<section class="card">
+  <div class="card__body">
+    {{> privacy_body}}
+    <form method="POST" action="/privacy/acknowledge" style="margin-top:22px;padding-top:18px;border-top:1px solid var(--border)" novalidate>
+      <input type="hidden" name="_csrf" value="{{csrfToken}}">
+      {{#if error}}<div class="alert alert--error" role="alert"><svg class="ic"><use href="#i-alert"/></svg><div>{{error}}</div></div>{{/if}}
+      <label class="check"><input type="checkbox" name="agree" value="1"> <span>I have read and understood this Privacy Notice.</span></label>
+      <div class="form-actions" style="border-top:0;margin-top:12px;padding-top:0"><button class="btn btn--primary" type="submit">Continue</button></div>
+    </form>
+  </div>
+</section>
+{{> app_shell_close}}

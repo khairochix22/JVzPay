@@ -1,0 +1,18 @@
+{{> app_head}}
+<div class="auth">
+  {{#> auth_hero headline="You're all set." lead="Your account matched HR's record and is active."}}
+  {{/auth_hero}}
+  <main class="auth__panel">
+    <div class="auth__card">
+      <div class="auth__mobile-brand"><img class="auth__logo" src="/img/johnvivz-logo-trim.png" alt="JohnVivz" width="120" height="65"><span>JVzPay<small>Manage · Pay · Grow</small></span></div>
+      <div class="auth__head auth__head--left"><h1>Account activated</h1><p>{{done.position}} · {{done.department}}</p></div>
+      <div class="alert alert--success" role="status"><svg class="ic"><use href="#i-check-circle"/></svg>
+        <div>{{#if here}}Sign in to JVzPay with the email and password you just chose. You will work as <strong>{{done.roleName}}</strong>.{{else}}Sign in to the <strong>{{done.department}}</strong> application with the email and password you just chose. Your payslips, leave and attendance are in JVzPay Self-Service with the same sign-in.{{/if}}</div>
+      </div>
+      <a class="btn btn--primary btn--block" href="/login">{{#if here}}Sign in to JVzPay{{else}}Open JVzPay Self-Service{{/if}}</a>
+    </div>
+  </main>
+</div>
+<script src="/js/app.js"></script>
+</body>
+</html>

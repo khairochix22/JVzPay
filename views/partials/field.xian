@@ -1,0 +1,8 @@
+<div class="field">
+  <label for="{{name}}">{{label}}{{#if required}} <span class="req" aria-hidden="true">*</span>{{/if}}</label>
+  {{#if fieldIcon}}<div class="input-icon{{#if reveal}} input-icon--action{{/if}}"><svg class="ic"><use href="#i-{{fieldIcon}}"/></svg>{{/if}}
+  <input class="input" id="{{name}}" name="{{name}}" type="{{default type "text"}}" value="{{value}}"{{#if required}} required{{/if}}{{#if placeholder}} placeholder="{{placeholder}}"{{/if}}{{#if inputmode}} inputmode="{{inputmode}}"{{/if}}{{#if mask}} data-mask="{{mask}}"{{/if}}{{#if autocomplete}} autocomplete="{{autocomplete}}"{{/if}}{{#if error}} aria-invalid="true" aria-describedby="{{name}}-err"{{/if}}>
+  {{#if fieldIcon}}{{#if reveal}}<button type="button" class="input-icon__btn" data-toggle-password="{{name}}" aria-pressed="false" aria-label="Show password" data-no-loading><svg class="ic"><use href="#i-eye"/></svg></button>{{/if}}</div>{{/if}}
+  {{#if hint}}<span class="field__hint">{{hint}}</span>{{/if}}
+  {{#if error}}<span class="field__error" id="{{name}}-err">{{error}}</span>{{/if}}
+</div>
