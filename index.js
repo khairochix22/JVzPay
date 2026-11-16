@@ -29,6 +29,7 @@ import session from "express-session";
 import flash from "connect-flash";
 import helmet from "helmet";
 import fs from "fs";
+import os from "os";
 import http from "http";
 import https from "https";
 import hbs from "hbs";
@@ -79,10 +80,12 @@ app.use(
 app.use(express.static(path.join(__dirname, "public")));
 app.use("/vendor/chartjs", express.static(path.join(__dirname, "node_modules", "chart.js", "dist")));
 
-app.use(express.json({ limit: "1mb" }));
+// keep the exact bytes of a JSON body: signed service requests are verified against them (lib/serviceSignature.js)
+app.use(express.json({ limit: "1mb", verify: (req, res, buf) => { req.rawBody = buf; } }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
-// service-to-service API: bearer tokens, no session or CSRF (docs/API_INTEGRATION.md)
-app.use("/api/v1", apiRouter);
+// service-to-service API: signed requests or bearer tokens, no session or CSRF (docs/API_INTEGRATION.md).
+// Served at both /api/v1 and the CRM integration contract's /api/integration/v1.
+app.use(["/api/v1", "/api/integration/v1"], apiRouter);
 
 app.use(
   session({
@@ -188,7 +191,11 @@ export const startServer = (port = PORT) => {
     const tls = env.https.enabled ? { cert: fs.readFileSync(env.https.certFile), key: fs.readFileSync(env.https.keyFile) } : null;
     const server = tls ? https.createServer(tls, app) : http.createServer(app);
     server.listen(port, () => {
-      console.log(`🔥 XianFire running at ${tls ? "https" : "http"}://localhost:${port}`);
+      const scheme = tls ? "https" : "http";
+      console.log(`🔥 XianFire running at ${scheme}://localhost:${port}`);
+      // it listens on every address: show the ones the other JOHNVIVZ laptops on the same Wi-Fi can use
+      const lan = Object.values(os.networkInterfaces()).flat().filter((a) => a && a.family === "IPv4" && !a.internal).map((a) => `${scheme}://${a.address}:${port}`);
+      if (lan.length) console.log(`   On this network: ${lan.join("  ")}  (integration API: <address>/api/v1 or /api/integration/v1)`);
       if (tls && env.https.redirectPort) {
         http.createServer((req, res) => {
           res.writeHead(301, { Location: `https://${String(req.headers.host || "localhost").replace(/:\d+$/, "")}:${port}${req.url}` });

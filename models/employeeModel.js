@@ -42,6 +42,7 @@ export const Employee = sequelize.define(
     pagibig_no_enc: { type: DataTypes.STRING(255), allowNull: true },
     tin_enc: { type: DataTypes.STRING(255), allowNull: true },
     hr_verification_hash: { type: DataTypes.CHAR(64), allowNull: true },
+    hr_employee_code: { type: DataTypes.STRING(64), allowNull: true },
     hr_synced_at: { type: DataTypes.DATE, allowNull: true },
     hr_event_id: { type: DataTypes.STRING(64), allowNull: true },
     created_by: { type: DataTypes.BIGINT.UNSIGNED, allowNull: true },

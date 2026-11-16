@@ -9,7 +9,7 @@ import { tableState, tableMeta, likeTerm } from "../lib/paginate.js";
 import { fullName } from "./employeeService.js";
 import { dateRange, schedule } from "./attendanceService.js";
 import { nextDocNo } from "../lib/sequence.js";
-import { routeFor, sendToDepartment, guardRouting, reportOutcome } from "./requestRouting.js";
+import { routeFor, guardRouting, reportOutcome } from "./requestRouting.js";
 import { startApproval } from "./supervisorApproval.js";
 import { scheduleFor, defaultFor, isDayOff } from "./scheduleService.js";
 
@@ -150,9 +150,6 @@ export async function applyOvertime(req, v) {
       [no, employeeId, v.work_date, v.start_time, v.end_time, v.hours, type, v.reason, routed, req.user.id], trx);
     await startApproval("overtime", insertId, approver, req, trx);
     await audit(req, { action: "overtime_applied", module: "overtime", recordType: "overtime", recordId: insertId, next: { request_no: no, date: v.work_date, hours: v.hours, routed } }, trx);
-    if (routed === "department") {
-      await sendToDepartment("overtime", { no }, emp, { work_date: v.work_date, start_time: v.start_time, end_time: v.end_time, hours: v.hours, ot_type: type, reason: v.reason }, trx);
-    }
     return { id: insertId, no, hours: v.hours, routed };
   });
 }
@@ -172,5 +169,6 @@ export async function myOvertime(employeeId) {
     scalar("SELECT COUNT(*) FROM overtime_records WHERE employee_id = ? AND status = 'pending'", [employeeId]),
     routeFor(employeeId),
   ]);
-  return { rows, approvedMonth: Number(month), pending: Number(pending), viaHr: route.routed === "department" };
+  const a = route.approver;
+  return { rows, approvedMonth: Number(month), pending: Number(pending), firstApprover: a.mode === "user" ? a.name : a.mode === "role" ? "the Accounting Supervisor" : null };
 }

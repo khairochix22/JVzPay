@@ -41,7 +41,7 @@ r = await send(hr.token, ev("DepartmentUpserted", { department_code: "DELI", dep
 check("department event applied (202)", r.status === 202 && r.body.status === "processed", JSON.stringify(r.body));
 const hire = ev("EmployeeCreated", {
   employee_id: "HR-777", employee_no: "JV-0777", first_name: "Ramon", last_name: "Tolentino", birth_date: "1995-02-14", email: "ramon@example.com",
-  department_code: "DELI", department_name: "Deli Counter", position_title: "Deli Attendant", employment_type: "regular", employment_status: "active",
+  department_code: "CRM", department_name: "Customer Relation Management", position_title: "Agent", employment_type: "regular", employment_status: "active",
   date_hired: "2026-10-01", verification_reference: "hr-ramon-77",
 });
 r = await send(hr.token, hire);
@@ -55,13 +55,17 @@ r = await send(hr.token, { ...hire, event_id: `${hire.event_id}-b`, idempotency_
 await send(hr.token, { ...hire, event_id: `${hire.event_id}-c`, idempotency_key: "EmployeeCreated:HR-777:1" }).then((x) => check("a repeated idempotency key is a duplicate", x.body.status === "duplicate"));
 check("still one employee", (await select("SELECT id FROM employees WHERE hr_employee_id = 'HR-777'")).length === 1);
 
-r = await send(hr.token, ev("EmployeeCompensationApproved", { employee_id: "HR-777", compensation_version_id: "CV-1", basic_salary: "16500.00", rate_basis: "monthly", pay_frequency: "semi_monthly", effective_date: "2026-10-01", approval_reference: "HR-APR-9" }));
+// salary bands are configured per position (migration 024 seeds them only where the department already exists)
+await sequelize.query("INSERT IGNORE INTO position_compensation_bands (position_id, effective_from, minimum_monthly, midpoint_monthly, maximum_monthly, enforcement, benchmark_basis) VALUES (?, '2026-11-13', 16000, 21000, 28000, 'block', 'e2e test band')", { replacements: [ramon.position_id] });
+r = await send(hr.token, ev("EmployeeCompensationApproved", { employee_id: "HR-777", compensation_version_id: "CV-1", basic_salary: "16500.00", rate_basis: "monthly", pay_frequency: "semi_monthly", effective_date: "2026-11-15", approval_reference: "HR-APR-9" }));
 check("compensation event applied", r.status === 202, JSON.stringify(r.body));
 const sal = await selectOne("SELECT * FROM salary_history WHERE employee_id = ? ORDER BY id DESC LIMIT 1", [ramon.id]);
-check("an HR-approved salary version is recorded and effective-dated", !!sal && Number(sal.new_amount) === 16500 && sal.verification_status === "verified" && String(sal.effective_date).slice(0, 10) === "2026-10-01");
+check("an HR-approved salary version is recorded and effective-dated", !!sal && Number(sal.new_amount) === 16500 && sal.verification_status === "verified" && String(sal.effective_date).slice(0, 10) === "2026-11-15", JSON.stringify(sal));
 r = await send(hr.token, ev("EmployeeCompensationApproved", { employee_id: "HR-777", basic_salary: "18000.00", rate_basis: "monthly", effective_date: "2027-01-01" }));
 check("a future salary is kept for later and the current one stays", r.status === 202 && Number((await selectOne("SELECT basic_salary FROM employees WHERE id = ?", [ramon.id])).basic_salary) === 16500
   && (await select("SELECT id FROM salary_history WHERE employee_id = ?", [ramon.id])).length === 2);
+r = await send(hr.token, ev("EmployeeCompensationApproved", { employee_id: "HR-777", basic_salary: "90000.00", rate_basis: "monthly", effective_date: "2026-12-01" }));
+check("a salary outside the position band is refused with the reason", r.status === 422 && /band/.test(r.body.error), JSON.stringify(r.body));
 
 // ---- an event that cannot be applied stays in the inbox and can be retried once the cause is fixed
 const early = ev("EmployeeStatusChanged", { employee_id: "HR-888", employment_status: "resigned", effective_date: "2026-11-30", separation_date: "2026-11-30" });
@@ -95,12 +99,15 @@ const hrClient = await selectOne("SELECT id FROM integration_clients WHERE name 
 await admin.submit("/settings/integration", `/settings/integration/tokens/${hrClient.id}/revoke`, {});
 check("a revoked token is refused", (await send(hr.token, ev("DepartmentUpserted", { department_code: "DELI" }))).status === 401);
 
-// ---- outbox: queued while the other application has no address, delivered by the scheduler once it has one
+// ---- outbox: HR is pull-only (HR_EVENTS_ENABLED off by default), so nothing is queued for it; other targets wait for an address
 const { enqueue, deliverDue } = await import(new URL("../../services/integrationService.js", import.meta.url).href);
-delete process.env.HR_API_URL;
-const outId = await enqueue("hr", "PayslipPublished", "PS-TEST", { payslip_no: "PS-TEST" });
+const hrOut = await enqueue("hr", "PayslipPublished", "PS-TEST", { payslip_no: "PS-TEST" });
+check("with HR events switched off nothing is queued for HR", hrOut === null && !(await selectOne("SELECT id FROM integration_outbox WHERE target = 'hr' AND entity_id = 'PS-TEST'")));
+delete process.env.CRM_API_URL;
+const outId = await enqueue("crm", "PayslipPublished", "PS-TEST", { payslip_no: "PS-TEST" });
 await deliverDue();
-check("without an HR address the event waits as not connected", (await selectOne("SELECT status FROM integration_outbox WHERE event_id = ?", [outId])).status === "not_connected");
+check("without a CRM address the event waits as not connected", (await selectOne("SELECT status FROM integration_outbox WHERE event_id = ?", [outId])).status === "not_connected");
+await sequelize.query("DELETE FROM integration_outbox WHERE event_id = ?", { replacements: [outId] }); // a test row only
 
 report();
 await sequelize.close();

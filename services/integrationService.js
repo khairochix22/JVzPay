@@ -5,6 +5,7 @@ import crypto from "node:crypto";
 import { select, selectOne, scalar, exec, tx } from "../lib/db.js";
 import { audit } from "../lib/audit.js";
 import { badRequest, notFound } from "../lib/errors.js";
+import { ReplayGuard, verifySignedRequest, signedHeaders, manilaTimestamp } from "../lib/serviceSignature.js";
 
 export const SOURCES = { johnvivz_hr: "HR", johnvivz_crm: "CRM", johnvivz_inventory: "Inventory" };
 const TARGET_ENV = { hr: "HR_API", crm: "CRM_API", inventory: "INVENTORY_API" };
@@ -39,6 +40,31 @@ export async function authenticateClient(header) {
   return c;
 }
 
+// ---- signed requests (CRM integration contract §2): X-JVZ-Client / X-JVZ-Timestamp / X-JVZ-Signature ------------------------
+// Each sender has its own shared secret for calling JVzPay, in .env (never in the database or the code).
+const INBOUND_SECRET_ENV = { johnvivz_hr: "HR_INBOUND_SECRET", johnvivz_crm: "CRM_INBOUND_SECRET", johnvivz_inventory: "INVENTORY_INBOUND_SECRET" };
+const inboundSecret = (source) => (INBOUND_SECRET_ENV[source] ? process.env[INBOUND_SECRET_ENV[source]] || "" : "");
+const replayGuard = new ReplayGuard();
+
+/**
+ * Who is calling: a signed request (X-JVZ-* headers, the contract's method) or a bearer service token (JVzPay's original
+ * method; both stay accepted). Returns { client, signed } or { error, signed } with the contract's code: unauthorized,
+ * invalid_signature, stale_timestamp or replayed_request.
+ */
+export async function authenticateRequest(req) {
+  if (req.get("x-jvz-signature") || req.get("x-jvz-client")) {
+    const source = String(req.get("x-jvz-client") || "");
+    const error = verifySignedRequest({
+      client: source, timestamp: req.get("x-jvz-timestamp"), signature: req.get("x-jvz-signature"),
+      method: req.method, path: req.originalUrl, body: req.rawBody || "", secretFor: inboundSecret, guard: replayGuard,
+    });
+    if (error) return { error, signed: true };
+    return { client: { id: null, source, name: `${SOURCES[source]} (signed requests)` }, signed: true };
+  }
+  const client = await authenticateClient(req.get("authorization"));
+  return client ? { client, signed: false } : { error: "unauthorized", signed: false };
+}
+
 export const listClients = () =>
   select(`SELECT c.*, u.full_name AS created_by_name FROM integration_clients c LEFT JOIN users u ON u.id = c.created_by ORDER BY c.is_active DESC, c.id DESC`);
 
@@ -56,6 +82,7 @@ function checkEnvelope(client, e) {
   if (typeof e.data !== "object") throw badRequest("data must be an object.");
   if (e.source !== client.source) throw badRequest(`This token belongs to ${client.source}; the event says ${e.source}.`);
   if (String(e.event_id).length > 64) throw badRequest("event_id is too long.");
+  if (e.schema_version !== undefined && Number(e.schema_version) !== 1) throw badRequest("schema_version must be 1.");
   if (!HANDLERS[e.source]?.[e.event_type]) throw badRequest(`JVzPay does not accept ${e.event_type} from ${e.source}.`);
 }
 
@@ -153,8 +180,11 @@ async function employeeUpsert(d, e, trx) {
     birth_date: d.birth_date || null, email: str(d.email), phone: str(d.phone, 30), department_id: dept.id, position_id: pos.id,
     employment_type: d.employment_type || "regular", employment_status: d.employment_status || "active", date_hired: d.date_hired,
     hr_verification_hash: d.verification_reference ? sha256(String(d.verification_reference).trim().toUpperCase()) : undefined,
+    // HR's Employee Unique Code, returned by the department login (agreed answer); registration checks the hash above
+    hr_employee_code: d.employee_code ? str(d.employee_code, 64) : undefined,
   };
   if (fields.hr_verification_hash === undefined) delete fields.hr_verification_hash;
+  if (fields.hr_employee_code === undefined) delete fields.hr_employee_code;
   // the immediate supervisor or team leader (HR employee id), who gives the first approval of the employee requests
   if (d.supervisor_employee_id !== undefined) {
     if (d.supervisor_employee_id && String(d.supervisor_employee_id) === String(d.employee_id)) fail("data.supervisor_employee_id cannot be the employee.");
@@ -164,7 +194,8 @@ async function employeeUpsert(d, e, trx) {
   if (id) {
     const sets = Object.keys(fields).map((k) => `${k} = ?`).join(", ");
     await exec(`UPDATE employees SET ${sets}, hr_employee_id = ?, hr_synced_at = NOW(), hr_event_id = ?, deleted_at = NULL WHERE id = ?`, [...Object.values(fields), hrId, str(e.event_id, 64), id], trx);
-    return `employee ${fields.employee_no} updated`;
+    const off = SEPARATED.includes(fields.employment_status) ? await disableSeparatedAccess(id, fields.employment_status, trx) : 0;
+    return `employee ${fields.employee_no} updated${off ? "; ESS access removed" : ""}`;
   }
   // a new snapshot starts at ₱0 until HR sends the approved compensation (EmployeeCompensationApproved)
   const cols = Object.keys(fields);
@@ -193,7 +224,21 @@ async function employeeStatus(d, e, trx) {
   await exec("UPDATE employees SET employment_status = ?, date_separated = ?, hr_synced_at = NOW(), hr_event_id = ? WHERE id = ?", [d.employment_status, sep, str(e.event_id, 64), emp.id], trx);
   await exec("INSERT INTO employment_history (employee_id, change_type, from_status, to_status, effective_date, remarks) VALUES (?,?,?,?,?,'Received from HR')",
     [emp.id, leaving ? "separation" : "status_change", emp.employment_status, d.employment_status, d.effective_date], trx);
-  return `employee ${emp.employee_no} is now ${d.employment_status}${sep ? ` (payroll stops after ${sep})` : ""}`;
+  const off = leaving ? await disableSeparatedAccess(emp.id, d.employment_status, trx) : 0;
+  return `employee ${emp.employee_no} is now ${d.employment_status}${sep ? ` (payroll stops after ${sep})` : ""}${off ? "; ESS access removed" : ""}`;
+}
+
+// Resigned or Terminated in HR: the ESS account is deactivated and signed out everywhere. The department login refuses
+// the employee too (403 not_allowed), so CRM and Inventory lose access at the next sign-in. Rehiring is a manual step.
+const SEPARATED = ["resigned", "terminated"];
+async function disableSeparatedAccess(employeeId, status, trx) {
+  const users = await select("SELECT id FROM users WHERE employee_id = ? AND status <> 'inactive' AND deleted_at IS NULL", [employeeId], trx);
+  for (const u of users) {
+    await exec("UPDATE users SET status = 'inactive' WHERE id = ?", [u.id], trx);
+    await exec("DELETE FROM user_sessions WHERE user_id = ?", [u.id], trx);
+    await audit(null, { action: "ess_access_removed", module: "users", actor: INTEGRATION_ACTOR, recordType: "user", recordId: u.id, remarks: `HR status ${status}` }, trx);
+  }
+  return users.length;
 }
 
 async function compensation(d, e, trx) {
@@ -278,14 +323,30 @@ export const HANDLERS = {
   johnvivz_inventory: {},
 };
 export function registerHandlers(source, map) { Object.assign(HANDLERS[source], map); }
+// the HR pull sync (hrSyncService.js) applies HR's data through these same handlers
+export const hrHandlers = { employeeUpsert, employeeStatus, compensation, department };
 export { EventError, fail as eventFail, need as eventNeed, money as eventMoney, isDate as eventIsDate, str as eventStr };
 
 // ---- outbound events ---------------------------------------------------------------------------------------------------------
-/** Queue an event for another application. Call inside the business transaction so it is sent only if that commits. */
+/**
+ * Does JVzPay send events to this application? {APP}_EVENTS_ENABLED in .env. HR is pull-only (no /events endpoint),
+ * so HR_EVENTS_ENABLED defaults to false; CRM and Inventory default to true. Direct calls (HR's verify) are not affected.
+ */
+export const eventsEnabled = (target) => {
+  const v = process.env[`${String(target).toUpperCase()}_EVENTS_ENABLED`];
+  if (v === undefined || v === "") return target !== "hr";
+  return ["1", "true", "yes", "on"].includes(String(v).toLowerCase());
+};
+
+/**
+ * Queue an event for another application. Call inside the business transaction so it is sent only if that commits.
+ * Returns the event_id, or null when events to that application are switched off (nothing is queued, so nothing piles up).
+ */
 export async function enqueue(target, eventType, entityId, data, trx = null, correlationId = null) {
+  if (!eventsEnabled(target)) return null;
   const eventId = crypto.randomUUID();
   const envelope = {
-    event_id: eventId, event_type: eventType, schema_version: 1, source: "johnvivz_accounting", occurred_at: new Date().toISOString(),
+    event_id: eventId, event_type: eventType, schema_version: 1, source: "johnvivz_accounting", occurred_at: manilaTimestamp(),
     entity_id: entityId != null ? String(entityId) : null, correlation_id: correlationId || crypto.randomUUID(), idempotency_key: `${eventType}:${entityId}:${eventId}`, data,
   };
   await exec("INSERT INTO integration_outbox (event_id, target, event_type, entity_id, correlation_id, payload, next_attempt_at) VALUES (?,?,?,?,?,?, NOW())",
@@ -293,15 +354,38 @@ export async function enqueue(target, eventType, entityId, data, trx = null, cor
   return eventId;
 }
 
+/**
+ * How to reach another application, from .env: {APP}_API_URL (base address), {APP}_API_PREFIX (default /api/v1; the
+ * CRM contract uses /api/integration/v1), and how to prove it is JVzPay: {APP}_API_SECRET (signed X-JVZ-* headers) and/or
+ * {APP}_API_TOKEN (bearer token).
+ */
 export const targetConfig = (target) => {
   const p = TARGET_ENV[target];
   const url = (process.env[`${p}_URL`] || "").replace(/\/+$/, "");
-  return { url, token: process.env[`${p}_TOKEN`] || "", connected: !!url };
+  const prefix = `/${String(process.env[`${p}_PREFIX`] || "/api/v1").replace(/^\/+|\/+$/g, "")}`;
+  return { url, prefix, token: process.env[`${p}_TOKEN`] || "", secret: process.env[`${p}_SECRET`] || "", connected: !!url };
 };
+
+/** One HTTP call to another application, signed anew on every call (so a retry is never a replay). */
+export async function callApp(target, method, path, body = null, { idempotencyKey = null, timeoutMs = 10000 } = {}) {
+  const cfg = targetConfig(target);
+  if (!cfg.connected) throw new Error(`${target.toUpperCase()} address not set`);
+  const url = new URL(`${cfg.url}${cfg.prefix}${path}`);
+  const raw = body === null ? "" : typeof body === "string" ? body : JSON.stringify(body);
+  const headers = { accept: "application/json" };
+  if (raw) headers["content-type"] = "application/json";
+  if (cfg.token) headers.authorization = `Bearer ${cfg.token}`;
+  if (cfg.secret) Object.assign(headers, signedHeaders(cfg.secret, method, `${url.pathname}${url.search}`, raw));
+  if (idempotencyKey) headers["Idempotency-Key"] = String(idempotencyKey);
+  return fetch(url, { method, headers, body: raw || undefined, signal: AbortSignal.timeout(timeoutMs) });
+}
 
 /** Send due events. Unconfigured targets are marked not_connected and picked up once their URL is set. */
 export async function deliverDue(limit = 25) {
-  const due = await select("SELECT * FROM integration_outbox WHERE status IN ('pending','not_connected') AND (next_attempt_at IS NULL OR next_attempt_at <= NOW()) ORDER BY id LIMIT ?", [limit]);
+  // events already queued for an application whose events are now switched off stay as they are (never retried, never failed)
+  const enabled = Object.keys(TARGET_ENV).filter(eventsEnabled);
+  if (!enabled.length) return { due: 0, sent: 0 };
+  const due = await select("SELECT * FROM integration_outbox WHERE status IN ('pending','not_connected') AND target IN (?) AND (next_attempt_at IS NULL OR next_attempt_at <= NOW()) ORDER BY id LIMIT ?", [enabled, limit]);
   let sent = 0;
   for (const o of due) {
     const cfg = targetConfig(o.target);
@@ -312,25 +396,26 @@ export async function deliverDue(limit = 25) {
       } else await exec("UPDATE integration_outbox SET next_attempt_at = DATE_ADD(NOW(), INTERVAL 15 MINUTE) WHERE id = ?", [o.id]);
       continue;
     }
+    let rejected = false;
     try {
-      const res = await fetch(`${cfg.url}/api/v1/events`, {
-        method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${cfg.token}` },
-        body: typeof o.payload === "string" ? o.payload : JSON.stringify(o.payload), signal: AbortSignal.timeout(10000),
-      });
+      const payload = typeof o.payload === "string" ? o.payload : JSON.stringify(o.payload);
+      const res = await callApp(o.target, "POST", "/events", payload, { idempotencyKey: JSON.parse(payload).idempotency_key });
       if (res.ok) {
         await exec("UPDATE integration_outbox SET status = 'sent', attempts = attempts + 1, sent_at = NOW(), last_error = NULL WHERE id = ?", [o.id]);
         await exec("INSERT INTO integration_logs (direction, outbox_id, outcome, message) VALUES ('out', ?, 'sent', ?)", [o.id, `HTTP ${res.status}`]);
         sent++;
         continue;
       }
+      // contract §4: 400 means the receiver finds the envelope invalid; the same bytes can never succeed, so stop at once
+      rejected = res.status === 400;
       throw new Error(`HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
     } catch (err) {
       const attempts = o.attempts + 1;
-      const final = attempts >= 10;
+      const final = rejected || attempts >= 10;
       // back off: 1, 2, 4 … minutes, at most an hour between tries
       await exec(`UPDATE integration_outbox SET status = ?, attempts = ?, last_error = ?, next_attempt_at = DATE_ADD(NOW(), INTERVAL ? MINUTE) WHERE id = ?`,
         [final ? "failed" : "pending", attempts, String(err.message).slice(0, 500), Math.min(60, 2 ** (attempts - 1)), o.id]);
-      await exec("INSERT INTO integration_logs (direction, outbox_id, outcome, message) VALUES ('out', ?, ?, ?)", [o.id, final ? "failed" : "retry", String(err.message).slice(0, 500)]);
+      await exec("INSERT INTO integration_logs (direction, outbox_id, outcome, message) VALUES ('out', ?, ?, ?)", [o.id, rejected ? "rejected" : final ? "failed" : "retry", String(err.message).slice(0, 500)]);
     }
   }
   return { due: due.length, sent };
@@ -365,7 +450,7 @@ export async function integrationOverview({ status = "", direction = "in" } = {}
       processed: count(inCounts, "processed"), failedIn: count(inCounts, "failed"),
       sent: count(outCounts, "sent"), pendingOut: count(outCounts, "pending"), notConnected: count(outCounts, "not_connected"), failedOut: count(outCounts, "failed"),
     },
-    targets: ["hr", "crm", "inventory"].map((t) => ({ target: t, label: t === "hr" ? "HR" : t === "crm" ? "CRM" : "Inventory", connected: targetConfig(t).connected })),
+    targets: ["hr", "crm", "inventory"].map((t) => ({ target: t, label: t === "hr" ? "HR" : t === "crm" ? "CRM" : "Inventory", connected: targetConfig(t).connected, eventsEnabled: eventsEnabled(t) })),
     clients, inbox, outbox, lastHrSync: lastHr,
   };
 }

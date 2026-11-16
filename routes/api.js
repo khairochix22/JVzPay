@@ -16,7 +16,7 @@ r.use(rateLimit({ windowMs: 60 * 1000, limit: 600, standardHeaders: "draft-7", l
 r.get("/health", events.health);
 r.post("/events", events.receive);
 // stricter: these are password checks
-r.post("/auth/login", rateLimit({ windowMs: 15 * 60 * 1000, limit: 60, standardHeaders: "draft-7", legacyHeaders: false, message: { authenticated: false, error: "Too many sign-in attempts; try again later." } }), events.departmentLogin);
+r.post("/auth/login", rateLimit({ windowMs: 15 * 60 * 1000, limit: 60, standardHeaders: "draft-7", legacyHeaders: false, message: { error: "rate_limited", message: "Too many sign-in attempts; try again later." } }), events.departmentLogin);
 
 // read API (GET) — each group answers only its own application's token; docs/API_INTEGRATION.md §5
 const HR = requireClient("johnvivz_hr"), CRM = requireClient("johnvivz_crm"), INV = requireClient("johnvivz_inventory");

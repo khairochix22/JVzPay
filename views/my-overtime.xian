@@ -6,7 +6,7 @@
 
 <div class="grid grid--kpi">
   <div class="kpi"><div class="kpi__icon"><svg class="ic"><use href="#i-check-circle"/></svg></div><div><div class="kpi__label">Approved this month</div><div class="kpi__value">{{fixed approvedMonth 2}} h</div><div class="kpi__hint">Validated for payroll</div></div></div>
-  <div class="kpi {{#if pending}}kpi--warning{{/if}}"><div class="kpi__icon"><svg class="ic"><use href="#i-clock"/></svg></div><div><div class="kpi__label">Waiting for a decision</div><div class="kpi__value">{{pending}}</div><div class="kpi__hint">{{#if viaHr}}Decided by your department supervisor through HR{{else}}Decided by the Accounting Supervisor{{/if}}</div></div></div>
+  <div class="kpi {{#if pending}}kpi--warning{{/if}}"><div class="kpi__icon"><svg class="ic"><use href="#i-clock"/></svg></div><div><div class="kpi__label">Waiting for a decision</div><div class="kpi__value">{{pending}}</div><div class="kpi__hint">{{#if firstApprover}}First {{firstApprover}}, then Accounting/Payroll{{else}}Decided by Accounting/Payroll{{/if}}</div></div></div>
 </div>
 
 <section class="card mb">

@@ -26,7 +26,7 @@ export const requestCorrection = wrap(async (req, res) => {
   if (Object.keys(errors).length) return attendancePage(req, res, { form: values, errors, showForm: true }, 422);
   try {
     const { no } = await att.requestCorrection(req, values, req.file);
-    req.flash("success_msg", `Correction request ${no} was submitted to the Accounting Supervisor.`);
+    req.flash("success_msg", `Correction request ${no} was submitted for approval.`);
     res.redirect(`/my/attendance?month=${values.work_date.slice(0, 7)}`);
   } catch (e) {
     if (!isUserError(e)) throw e;

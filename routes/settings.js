@@ -26,6 +26,8 @@ r.post("/integration/tokens", can("integration.manage"), integration.createToken
 r.post("/integration/tokens/:id(\\d+)/revoke", can("integration.manage"), integration.revokeToken);
 r.post("/integration/inbox/:id(\\d+)/retry", can("integration.manage"), integration.retryIn);
 r.post("/integration/outbox/:id(\\d+)/retry", can("integration.manage"), integration.retryOut);
+r.post("/integration/hr-sync", can("integration.manage"), integration.syncHr);
+r.post("/integration/inventory-poll", can("integration.manage"), integration.pollInv);
 r.get("/backup", can("settings.manage"), backup.page);
 r.post("/backup", can("settings.manage"), backup.create);
 r.post("/backup/cleanup", can("settings.manage"), backup.cleanup);

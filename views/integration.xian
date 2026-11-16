@@ -19,10 +19,37 @@
 
 <div class="grid grid--2 mb">
   <section class="card">
+    <div class="card__header"><div><h2>HR records (pull)</h2><p>HR sends no events: JVzPay reads its departments, employees and approved compensation every 15 minutes</p></div>
+      <form method="POST" action="/settings/integration/hr-sync"><input type="hidden" name="_csrf" value="{{csrfToken}}"><button class="btn btn--secondary btn--sm" type="submit"><svg class="ic"><use href="#i-download"/></svg>Sync now</button></form></div>
+    <div class="card__body">
+      {{#if hrSync}}
+        <p>{{#if hrSync.ok}}<span class="badge badge--success">Last sync OK</span>{{else}}<span class="badge badge--danger">Last sync failed</span>{{/if}} {{datetime hrSync.at}} · {{hrSync.trigger}} · {{hrSync.seconds}} s</p>
+        {{#if hrSync.error}}<div class="alert alert--error"><svg class="ic"><use href="#i-alert"/></svg><div>{{hrSync.error}}</div></div>{{/if}}
+        <p>Departments {{hrSync.departments.saved}}/{{hrSync.departments.seen}} · Employees {{hrSync.employees.seen}} ({{hrSync.employees.created}} new, {{hrSync.employees.status_changed}} status changes, {{hrSync.employees.separated}} separated, {{hrSync.employees.failed}} not saved) · Salary versions {{hrSync.compensation.recorded}} new, {{hrSync.compensation.unchanged}} unchanged, {{hrSync.compensation.failed}} not saved (from {{hrSync.compensation.endpoint}})</p>
+        {{#if hrSync.problems.length}}<details><summary>{{hrSync.problems.length}} problem(s)</summary><ul>{{#each hrSync.problems}}<li><small>{{this}}</small></li>{{/each}}</ul></details>{{/if}}
+      {{else}}<p class="muted">No HR sync has run yet{{#unless hrConnected}}: set HR_API_URL, HR_API_PREFIX and HR_API_TOKEN in <code>.env</code>{{/unless}}.</p>{{/if}}
+    </div>
+  </section>
+  <section class="card">
+    <div class="card__header"><div><h2>Inventory outbox (poll)</h2><p>Inventory keeps its events in an outbox: JVzPay reads and acknowledges them every minute</p></div>
+      <form method="POST" action="/settings/integration/inventory-poll"><input type="hidden" name="_csrf" value="{{csrfToken}}"><button class="btn btn--secondary btn--sm" type="submit"><svg class="ic"><use href="#i-download"/></svg>Poll now</button></form></div>
+    <div class="card__body">
+      {{#if invPoll}}
+        <p>{{#if invPoll.ok}}<span class="badge badge--success">Last poll OK</span>{{else}}<span class="badge badge--danger">Last poll failed</span>{{/if}} {{datetime invPoll.at}} · {{invPoll.trigger}}</p>
+        {{#if invPoll.error}}<div class="alert alert--error"><svg class="ic"><use href="#i-alert"/></svg><div>{{invPoll.error}}</div></div>{{/if}}
+        <p>Read {{invPoll.received}} · stored {{invPoll.stored}} ({{invPoll.processed}} applied, {{invPoll.failed}} failed) · duplicates {{invPoll.duplicates}} · acknowledged {{invPoll.acknowledged}} · not usable {{invPoll.unusable}}</p>
+        {{#if invPoll.problems.length}}<details><summary>{{invPoll.problems.length}} problem(s)</summary><ul>{{#each invPoll.problems}}<li><small>{{this}}</small></li>{{/each}}</ul></details>{{/if}}
+      {{else}}<p class="muted">No Inventory poll has run yet{{#unless invConnected}}: set INVENTORY_API_URL, INVENTORY_API_PREFIX and INVENTORY_API_TOKEN in <code>.env</code>{{/unless}}.</p>{{/if}}
+    </div>
+  </section>
+</div>
+
+<div class="grid grid--2 mb">
+  <section class="card">
     <div class="card__header"><div><h2>Connections</h2><p>Where JVzPay sends its events (set in <code>.env</code>)</p></div></div>
     <div class="card__body card__body--flush" style="padding-top:8px">
       <ul class="list">
-        {{#each targets}}<li class="list__item"><div class="list__body"><strong>{{label}}</strong><small>{{#if connected}}Address set: events are delivered{{else}}No address yet: events wait in the outbox{{/if}}</small></div>{{#if connected}}<span class="badge badge--success">Connected</span>{{else}}<span class="badge badge--warning">Not connected</span>{{/if}}</li>{{/each}}
+        {{#each targets}}<li class="list__item"><div class="list__body"><strong>{{label}}</strong><small>{{#if this.eventsEnabled}}{{#if connected}}Address set: events are delivered{{else}}No address yet: events wait in the outbox{{/if}}{{else}}Events switched off ({{label}} is read by pull){{#if connected}}; address set{{/if}}{{/if}}</small></div>{{#if connected}}<span class="badge badge--success">Connected</span>{{else}}<span class="badge badge--warning">Not connected</span>{{/if}}</li>{{/each}}
         <li class="list__item"><div class="list__body"><strong>Last HR employee update</strong><small>{{#if lastHrSync}}{{datetime lastHrSync}}{{else}}HR has not sent any employee record yet{{/if}}</small></div></li>
       </ul>
     </div>

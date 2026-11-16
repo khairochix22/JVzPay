@@ -8,10 +8,12 @@
 // (30 attempts per 15 minutes, kept in memory) is correct for production and is not relaxed for testing.
 import fs from "node:fs";
 import os from "node:os";
+import crypto from "node:crypto";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { env } from "../../config/env.js";
+import { spawnFakeApps } from "./fakeApps.mjs";
 
 if (!/_test$/i.test(env.db.name)) {
   console.error(`Refusing to run: these tests DROP the database, and DB_NAME is "${env.db.name}".\nUse a throwaway database whose name ends in _test, for example: $env:DB_NAME="JVzPay_test"; npm run test:e2e`);
@@ -23,7 +25,15 @@ const project = path.join(here, "..", "..");
 const port = process.env.E2E_PORT || "3311";
 const base = `http://localhost:${port}`;
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "jvzpay-e2e-"));
-const childEnv = { ...process.env, DISABLE_SCHEDULER: "1", PORT: port, DB_NAME: env.db.name, UPLOAD_DIR: path.join(tmp, "uploads"), BACKUP_DIR: path.join(tmp, "backups") };
+// fake HR (pull-only, verify) and Inventory (outbox) applications for the whole run (fakeApps.mjs)
+const fakeTokens = { hrToken: crypto.randomBytes(24).toString("hex"), inventoryToken: crypto.randomBytes(24).toString("hex") };
+const fakes = await spawnFakeApps(fakeTokens);
+const childEnv = { ...process.env, DISABLE_SCHEDULER: "1", PORT: port, DB_NAME: env.db.name, UPLOAD_DIR: path.join(tmp, "uploads"), BACKUP_DIR: path.join(tmp, "backups"),
+  // a throwaway secret for the signed-request (CRM contract) checks in stages 15 and 17
+  CRM_INBOUND_SECRET: crypto.randomBytes(32).toString("hex"),
+  HR_API_URL: fakes.hrUrl, HR_API_PREFIX: "/api/integration/v1", HR_API_TOKEN: fakeTokens.hrToken, HR_API_SECRET: "", HR_EVENTS_ENABLED: "",
+  INVENTORY_API_URL: fakes.invUrl, INVENTORY_API_PREFIX: "/api/integration/v1", INVENTORY_API_TOKEN: fakeTokens.inventoryToken, INVENTORY_API_SECRET: "",
+  CRM_API_URL: "", CRM_DEPARTMENT_CODES: "", INVENTORY_DEPARTMENT_CODES: "", HR_COMPENSATION_PATH: "", ACCOUNTING_DEPARTMENT_CODE: "", POSITION_ROLES: "", DEPARTMENT_SUPERVISOR_TITLES: "" };
 const adminEmail = (process.env.ADMIN_EMAIL || "").toLowerCase(), adminPass = process.env.ADMIN_PASSWORD;
 
 let totalPassed = 0, totalChecks = 0, failed = false, server;
@@ -109,7 +119,7 @@ if (!process.argv.includes("--browser-only")) {
   runScript("13-security.mjs");
   await stopServer();
   // a fresh server per stage, so the sign-ins of one stage do not count against the next one's rate limit
-  for (const script of ["14-integration.mjs", "15-ess-registration.mjs", "16-enrollments.mjs", "17-finance.mjs", "18-department-routing.mjs", "19-timekeeping-retirement.mjs", "20-staff-approvals-loans.mjs", "21-two-step-approval.mjs"]) {
+  for (const script of ["14-integration.mjs", "15-ess-registration.mjs", "16-enrollments.mjs", "17-finance.mjs", "18-department-routing.mjs", "19-timekeeping-retirement.mjs", "20-staff-approvals-loans.mjs", "21-two-step-approval.mjs", "22-hr-pull-inventory-poll.mjs"]) {
     await startServer();
     unlockAccounts();
     runScript(script);
@@ -124,6 +134,7 @@ if (!process.argv.includes("--no-browser")) {
   await stopServer();
 }
 
+fakes.close();
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log(`\n${totalPassed}/${totalChecks} checks passed${failed ? " — FAILURES ABOVE" : ""}`);
 process.exit(failed ? 1 : 0);

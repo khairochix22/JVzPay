@@ -1,6 +1,7 @@
 // Finance modules: accounts payable with approval and three-way matching, CRM sales (paid, on account, cancelled,
 // refunded), accounts receivable and collections, bank reconciliation and budgets. Every posting is checked in the ledger.
-import { Client, check, report, db, errText } from "./lib.mjs";
+import crypto from "node:crypto";
+import { Client, check, report, db, errText, root } from "./lib.mjs";
 const base = process.argv[2];
 const { selectOne, select, sequelize } = db;
 
@@ -114,6 +115,63 @@ check("accounting staff can view budgets but not set them", (await carla.get("/a
 r = await admin.submit("/accounting/budgets", "/accounting/budgets", { year: "2026", account_id: String(await acct("5120")), month_11: "8000" });
 r = await admin.get("/accounting/budgets?year=2026");
 check("budget vs actual shows the utilities overspend", r.status === 200 && r.text.includes("Utilities Expense") && r.text.includes("105%"), errText(r));
+
+// ---- CRM integration contract v0.4.1: signed X-JVZ-* requests on /api/integration/v1, contract-shaped events, VAT by Accounting
+// (kept last so these postings cannot move the balances checked above). The runner gives the server CRM_INBOUND_SECRET.
+const { computeSignature, manilaTimestamp } = await import(root + "lib/serviceSignature.js");
+const crmSecret = process.env.CRM_INBOUND_SECRET;
+const signed = async (method, path, body = null, { secret = crmSecret, timestamp = manilaTimestamp(), client = "johnvivz_crm", replay = null } = {}) => {
+  const raw = body === null ? "" : JSON.stringify(body);
+  const headers = replay || { "X-JVZ-Client": client, "X-JVZ-Timestamp": timestamp, "X-JVZ-Signature": computeSignature(secret, method, path, timestamp, raw) };
+  const x = await fetch(`${base}${path}`, { method, headers: { ...headers, ...(raw ? { "content-type": "application/json" } : {}) }, body: raw || undefined });
+  return { status: x.status, body: await x.json().catch(() => ({})), headers };
+};
+const envelope = (event_type, data, event_id = crypto.randomUUID()) => ({ event_id, event_type, schema_version: 1, source: "johnvivz_crm", occurred_at: manilaTimestamp(),
+  entity_id: data.sale_id || data.order_id, correlation_id: crypto.randomUUID(), idempotency_key: `${event_type}:${data.refund_id || data.sale_id || data.order_id}`, data });
+
+r = await signed("GET", "/api/integration/v1/health");
+check("contract: a signed health check on /api/integration/v1 answers ok for CRM", r.status === 200 && r.body.status === "ok" && r.body.source === "johnvivz_crm", JSON.stringify(r.body));
+check("contract: the same signed request again is refused as a replay", (await signed("GET", "/api/integration/v1/health", null, { replay: r.headers })).body.error === "replayed_request");
+r = await signed("GET", "/api/integration/v1/health", null, { secret: "wrong-secret" });
+check("contract: a wrong secret is 401 invalid_signature", r.status === 401 && r.body.error === "invalid_signature", JSON.stringify(r.body));
+r = await signed("GET", "/api/integration/v1/health", null, { timestamp: manilaTimestamp(new Date(Date.now() - 10 * 60 * 1000)) });
+check("contract: a 10-minute-old request is 401 stale_timestamp", r.status === 401 && r.body.error === "stale_timestamp", JSON.stringify(r.body));
+r = await fetch(`${base}/api/integration/v1/health`, { headers: { authorization: `Bearer ${crmToken}` } });
+check("contract: the bearer token still works on the contract path", r.status === 200);
+
+const saleId = crypto.randomUUID();
+const contractSale = envelope("SaleCompleted", {
+  sale_id: saleId, order_id: "ord-c1", transaction_no: "TXN-C1", customer_id: "cus-c1", completed_at: "2026-11-12T15:00:00.000+08:00", payment_status: "paid", currency: "PHP",
+  items: [
+    { line_no: 1, product_id: "p1", sku: "RICE1", quantity: 2, unit_price: "56.00", discount_amount: "0.00", line_total: "112.00", is_vatable: true },
+    { line_no: 2, product_id: "p2", sku: "PORK", quantity: 1.5, unit_price: "120.00", discount_amount: "10.00", line_total: "170.00", is_vatable: false },
+  ],
+  discounts: [], totals: { gross: "292.00", discount_total: "10.00", net: "282.00" },
+  payments: [{ method: "cash", reference_no: null, amount: "282.00", paid_at: "2026-11-12T14:59:00.000+08:00" }],
+});
+r = await signed("POST", "/api/integration/v1/events", contractSale);
+const sc = await selectOne("SELECT * FROM sales_imports WHERE transaction_id = ?", [saleId]);
+const je5 = sc ? await lines(sc.journal_entry_id) : {};
+check("contract: SaleCompleted is accepted (202) and posted", r.status === 202 && r.body.status === "accepted" && r.body.processing === "processed" && !!sc, JSON.stringify(r.body));
+check("contract: VAT computed by Accounting: Dr Cash 282, Dr Discounts 10 / Cr Sales 280, Cr Output VAT 12 (112 × 12/112)",
+  je5["1010"] === 282 && je5["4030"] === 10 && je5["4010"] === -280 && je5["2300"] === -12, JSON.stringify(je5));
+r = await signed("POST", "/api/integration/v1/events", contractSale);
+check("contract: the same event again is 200 duplicate", r.status === 200 && r.body.status === "duplicate" && r.body.event_id === contractSale.event_id, JSON.stringify(r.body));
+r = await signed("POST", "/api/integration/v1/events", { ...contractSale, event_id: crypto.randomUUID(), idempotency_key: "x", schema_version: 2 });
+check("contract: an unknown schema_version is 400 invalid_envelope", r.status === 400 && r.body.error === "invalid_envelope", JSON.stringify(r.body));
+const refund = envelope("RefundRecorded", { refund_id: "rf-c1", sale_id: saleId, order_id: "ord-c1", amount: "56.00", reason: "Spoiled", return_items: [{ product_id: "p1", quantity: 1, condition: "expired" }], approved_by_employee_id: null, recorded_at: "2026-11-13T10:00:00.000+08:00" });
+r = await signed("POST", "/api/integration/v1/events", refund);
+const rje = await selectOne("SELECT j.id FROM journal_entries j WHERE j.source_type = 'crm_refund' AND j.description LIKE ?", [`%rf-c1%`]);
+const je6 = rje ? await lines(rje.id) : {};
+check("contract: a refund reverses its share of Output VAT (Dr Returns 53.62, Dr VAT 2.38 / Cr Cash 56)", r.body.processing === "processed" && je6["4030"] === 53.62 && je6["2300"] === 2.38 && je6["1010"] === -56, JSON.stringify([r.body, je6]));
+r = await signed("POST", "/api/integration/v1/events", envelope("SaleCancelled", { order_id: "ord-c2", sale_id: null, reason: "Customer left", cancelled_at: "2026-11-13T11:00:00.000+08:00", release_items: [{ product_id: "p1", quantity: 1 }] }));
+check("contract: an order cancelled before completion is processed with nothing to post", r.status === 202 && r.body.processing === "processed", JSON.stringify(r.body));
+const badSale = envelope("SaleCompleted", { ...contractSale.data, sale_id: crypto.randomUUID(), totals: { gross: "292.00", discount_total: "10.00", net: "999.00" } });
+r = await signed("POST", "/api/integration/v1/events", badSale);
+const st = await signed("GET", `/api/integration/v1/events/${badSale.event_id}`);
+check("contract: a sale that does not add up is accepted (stored) but shows failed with the reason", r.status === 202 && r.body.processing === "failed" && st.body.status === "failed" && /totals.net/.test(st.body.error), JSON.stringify([r.body, st.body]));
+r = await signed("GET", `/api/integration/v1/crm/sales/${saleId}`);
+check("contract: CRM can read how its sale was posted by sale_id", r.status === 200 && r.body.status === "partially_refunded" && r.body.tax_amount === 12 && !!r.body.journal_entry?.entry_no, JSON.stringify(r.body));
 
 report();
 await sequelize.close();

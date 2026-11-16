@@ -5,7 +5,7 @@ import { select, selectOne, scalar, exec, tx } from "../lib/db.js";
 import { audit } from "../lib/audit.js";
 import { notifyEmployee } from "../lib/notify.js";
 import { getSetting } from "../lib/settings.js";
-import { routeFor, sendToDepartment, guardRouting, reportOutcome } from "./requestRouting.js";
+import { routeFor, guardRouting, reportOutcome } from "./requestRouting.js";
 import { badRequest, forbidden, notFound } from "../lib/errors.js";
 import { tableState, tableMeta, likeTerm } from "../lib/paginate.js";
 import { fullName } from "./employeeService.js";

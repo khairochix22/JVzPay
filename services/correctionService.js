@@ -4,7 +4,7 @@
 import { select, selectOne, scalar, exec, tx } from "../lib/db.js";
 import { audit } from "../lib/audit.js";
 import { notifyPermission } from "../lib/notify.js";
-import { routeFor, sendToDepartment, guardRouting, reportOutcome } from "./requestRouting.js";
+import { routeFor, guardRouting, reportOutcome } from "./requestRouting.js";
 import { startApproval } from "./supervisorApproval.js";
 
 import { nextDocNo } from "../lib/sequence.js";
@@ -109,11 +109,7 @@ export async function requestCorrection(req, values, file) {
       previous: rec ? { status: rec.status, time_in: rec.time_in, time_out: rec.time_out } : { record: "none" },
       next: { request_no: no, date: values.work_date, status: values.requested_status, time_in: values.requested_time_in, time_out: values.requested_time_out },
     }, trx);
-    if (routed === "department") {
-      await sendToDepartment("attendance_correction", { no }, emp, { work_date: values.work_date, requested_status: values.requested_status, requested_time_in: values.requested_time_in, requested_time_out: values.requested_time_out, reason: values.reason }, trx);
-      return { id: insertId, no, routed };
-    }
-    return { id: insertId, no, approver: approver.name };
+    return { id: insertId, no, approver: approver.name || null };
   });
 }
 

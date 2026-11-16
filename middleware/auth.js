@@ -1,6 +1,7 @@
 import { select, selectOne } from "../lib/db.js";
 import { HttpError } from "../lib/errors.js";
 import { getSetting } from "../lib/settings.js";
+import { isSupervisorTitle } from "../lib/orgSettings.js";
 
 // ---- role -> permission cache (short TTL; cleared whenever an Accounting Supervisor changes grants) --------------------------
 const permCache = new Map(); // roleId -> { at, set }
@@ -37,7 +38,7 @@ export async function loadUser(req, res, next) {
     const u = await selectOne(
       `SELECT u.id, u.email, u.full_name, u.status, u.must_change_password, u.privacy_ack_version, u.employee_id, u.role_id,
               r.code AS role_code, r.name AS role_name,
-              e.employee_no, e.first_name,
+              e.employee_no, e.first_name, ed.code AS dept_code, ep.title AS position_title,
               -- leads a team: HR named this employee as someone's immediate supervisor, or a first approval waits for them
               (e.hr_employee_id IS NOT NULL AND EXISTS (SELECT 1 FROM employees t WHERE t.supervisor_hr_id = e.hr_employee_id AND t.deleted_at IS NULL
                  AND t.employment_status IN ('active','on_leave'))) OR EXISTS (SELECT 1 FROM leave_applications x WHERE x.supervisor_user_id = u.id AND x.supervisor_status = 'pending')
@@ -47,6 +48,8 @@ export async function loadUser(req, res, next) {
          FROM users u
          JOIN roles r ON r.id = u.role_id
          LEFT JOIN employees e ON e.id = u.employee_id
+         LEFT JOIN departments ed ON ed.id = e.department_id
+         LEFT JOIN positions ep ON ep.id = e.position_id
         WHERE u.id = ? AND u.deleted_at IS NULL`,
       [id]
     );
@@ -56,7 +59,8 @@ export async function loadUser(req, res, next) {
     u.permissions = await permissionsFor(u.role_id);
     // Team Approvals is for immediate supervisors and team leaders (and Accounting Supervisors, the first approvers of
     // Payroll/Accounting employees with no supervisor on record) — not for every Self-Service user
-    if (u.role_code === "accounting_supervisor" || Number(u.leads_team)) u.permissions = new Set([...u.permissions, "team.approve"]);
+    // also every supervisor/manager title of a department (DEPARTMENT_SUPERVISOR_TITLES): they approve first when HR names no supervisor
+    if (u.role_code === "accounting_supervisor" || Number(u.leads_team) || isSupervisorTitle(u.dept_code, u.position_title)) u.permissions = new Set([...u.permissions, "team.approve"]);
     u.privacyAckNeeded = u.privacy_ack_version !== String(await getSetting("privacy.notice_version", "1"));
     u.can = (code) => u.permissions.has(code);
     u.canAny = (...codes) => codes.some((c) => u.permissions.has(c));

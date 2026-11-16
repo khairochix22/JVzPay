@@ -1,8 +1,7 @@
-// Department approval routing (master prompt §VI; owners' decisions 2026-11-11 and 2026-11-13).
-// Every request is approved first by the employee's immediate supervisor (supervisorApproval.js): inside JVzPay when the
-// supervisor has an account (or, for Payroll/Accounting, an Accounting Supervisor), otherwise through HR, which reaches
-// the team leader and returns RequestDecided. Accounting/Payroll then give the final decision in JVzPay, which keeps the
-// official record and sends HR each final outcome.
+// Approval routing (team decision 2026-11-16): every approval is done in ESS, never through HR. The immediate supervisor
+// in the same department approves first, or no first approval is needed (supervisorApproval.js); Accounting/Payroll
+// give the final decision and keep the official record. Final outcomes are still queued for HR (reportOutcome), but
+// only while HR_EVENTS_ENABLED is on — HR is pull-only today, so by default nothing is queued.
 import { selectOne } from "../lib/db.js";
 import { enqueue } from "./integrationService.js";
 import { approverFor, guardFinal } from "./supervisorApproval.js";
@@ -12,16 +11,7 @@ export async function routeFor(employeeId, trx = null) {
     `SELECT e.id, e.hr_employee_id, e.employee_no, CONCAT(e.first_name, ' ', e.last_name) AS name, d.code AS department_code, d.name AS department_name, p.title AS position_title
        FROM employees e JOIN departments d ON d.id = e.department_id JOIN positions p ON p.id = e.position_id WHERE e.id = ?`, [employeeId], trx);
   const approver = await approverFor(employeeId, trx);
-  return { emp, approver, routed: approver.mode === "hr" ? "department" : "accounting" };
-}
-
-/** Tell HR about a new request so it can reach the employee's department supervisor. */
-export async function sendToDepartment(kind, row, emp, details, trx) {
-  const type = { leave: "LeaveRequested", attendance_correction: "AttendanceCorrectionRequested", overtime: "OvertimeRequested", leave_conversion: "LeaveConversionRequested" }[kind];
-  return enqueue("hr", type, emp.hr_employee_id, {
-    request_type: kind, request_no: row.no, employee_id: emp.hr_employee_id, employee_no: emp.employee_no,
-    employee_name: emp.name, department_code: emp.department_code, position_title: emp.position_title, ...details,
-  }, trx);
+  return { emp, approver, routed: "accounting" };
 }
 
 /** The final decision waits for the immediate supervisor's approval and is never given by that same person. */

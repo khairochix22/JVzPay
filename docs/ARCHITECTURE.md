@@ -338,7 +338,7 @@ npm install
 npm run setup      # creates .env with random secrets + initial admin password (never overwrites)
 npm run migrate    # applies database/migrations/*.sql (non-destructive)
 npm run seed       # roles, permissions, chart of accounts, settings, statutory defaults, first Super Admin
-npm run dev        # http://localhost:3000
+npm run dev        # http://localhost:3002
 npm test           # unit + database-integrity tests (integrity tests run in rolled-back transactions)
 npm run restore -- storage/backups/<file>.sql.gz   # restores a backup; checks the file and saves a safety copy first
 ```

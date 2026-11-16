@@ -7,7 +7,7 @@ import { notifyPermission } from "../lib/notify.js";
 import { nextDocNo } from "../lib/sequence.js";
 import { getSetting } from "../lib/settings.js";
 import { validate } from "../lib/validate.js";
-import { routeFor, sendToDepartment, guardRouting, reportOutcome } from "./requestRouting.js";
+import { routeFor, guardRouting, reportOutcome } from "./requestRouting.js";
 import { startApproval } from "./supervisorApproval.js";
 import { badRequest, notFound } from "../lib/errors.js";
 import { saveAttachment } from "../middleware/upload.js";
@@ -108,12 +108,7 @@ export async function apply(req, values, file) {
     await startApproval("leave", insertId, approver, req, trx);
     await audit(req, { action: "leave_submitted", module: "leave", recordType: "leave_application", recordId: insertId,
       next: { application_no: no, type: type.code, start: values.start_date, end: values.end_date, days } }, trx);
-    // other departments' requests go to their own supervisor through HR; Payroll/Accounting's to the Accounting Supervisor
-    if (routed === "department") {
-      await sendToDepartment("leave", { no }, emp, { leave_type: type.code, leave_type_name: type.name, start_date: values.start_date, end_date: values.end_date, days, reason: values.reason }, trx);
-      return { id: insertId, no, days, routed };
-    }
-    return { id: insertId, no, days, routed, approver: approver.name };
+    return { id: insertId, no, days, routed, approver: approver.name || null };
   });
 }
 

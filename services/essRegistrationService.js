@@ -1,32 +1,29 @@
-// Employee account registration (owner's flow, 2026-11-13; master prompt §IV).
-//   1. HR encodes the new hire (with personal email), assigns department and position, and generates the Employee ID
-//      and a unique code. HR sends that record to JVzPay (EmployeeCreated, see docs/API_INTEGRATION.md).
-//   2. The new hire registers here with Employee ID, unique code, full name, email, department and position, and
-//      chooses a password. Every field must match HR's record — the email must be the one HR encoded, which proves the
-//      person controls it — and the employee must be active with no account yet.
-//   3. The account is activated at once. It opens only the application of the employee's own department: Payroll/
-//      Accounting staff sign in to JVzPay with the role their position calls for; everyone else signs in to their own
-//      department's application (CRM, Inventory, HR), which checks the credentials through JVzPay's login API.
-//      Every employee also keeps their Self-Service pages (payslips, leave, attendance) in JVzPay.
-import crypto from "node:crypto";
+// Employee account registration (team-agreed flow, 2026-11-16; master prompt §IV).
+//   1. HR encodes the new hire and generates the Employee ID (JV-YYYY-NNNNN) and the Employee Unique Code. JVzPay reads
+//      HR's records by pull (hrSyncService.js); HR sends no events.
+//   2. The new hire registers here with name, Employee ID, department, position, unique code and the onboarding email,
+//      and chooses a password. HR checks them (POST {HR}/employees/verify); only match + eligible registers. When HR
+//      cannot be reached the registration is refused: there is no offline registration.
+//   3. The account is activated at once. Payroll/Accounting staff sign in to JVzPay with the role of their position;
+//      CRM and Inventory sign their staff in through JVzPay's department login (below). Every employee keeps
+//      Self-Service (payslips, leave, attendance, approvals) in JVzPay.
 import bcrypt from "bcrypt";
 import { select, selectOne, exec, tx } from "../lib/db.js";
 import { audit } from "../lib/audit.js";
 import { checkPassword } from "../lib/validate.js";
 import { badRequest } from "../lib/errors.js";
 import { getSetting } from "../lib/settings.js";
-import { targetConfig, enqueue } from "./integrationService.js";
+import { targetConfig, enqueue, callApp } from "./integrationService.js";
+import { mismatchLabels } from "./hrMapping.js";
+import { syncOneEmployee, HrUnavailableError } from "./hrSyncService.js";
+import { roleForPosition, accountingDepartment } from "../lib/orgSettings.js";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const sha256 = (s) => crypto.createHash("sha256").update(String(s)).digest("hex");
-const norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
-const NO_MATCH = "These details do not match an active employee in HR's records. Check them with HR: Employee ID, unique code, name, email, department and position must all be exactly as HR encoded them.";
+const NO_MATCH = "These details do not match HR's records. Check them with HR: Employee ID, unique code, name, email, department and position must all be exactly as HR encoded them.";
+const NOT_ELIGIBLE = "HR's records show that this employee cannot register an account (for example, not active). Please contact HR.";
 
-// the JVzPay department; its people get a working role in JVzPay from their position
-export const ACCOUNTING_DEPARTMENT = "PAYROLL_ACCOUNTING";
-const ROLE_BY_POSITION = { "accounting supervisor": "accounting_supervisor", "accounting staff": "accounting_staff", "payroll staff": "payroll_staff" };
-export const roleForPosition = (deptCode, positionTitle) =>
-  deptCode === ACCOUNTING_DEPARTMENT ? ROLE_BY_POSITION[norm(positionTitle)] || "employee" : "employee";
+// the JVzPay department; its people get a working role in JVzPay from their position (POSITION_ROLES, lib/orgSettings.js)
+export { roleForPosition };
 
 export function checkForm(body) {
   const v = {
@@ -52,37 +49,43 @@ export function checkForm(body) {
   return { values: v, password, errors };
 }
 
-const nameMatches = (typed, emp) => {
-  const words = norm(typed).split(" ");
-  return words.includes(norm(emp.first_name).split(" ")[0]) && norm(typed).includes(norm(emp.last_name));
-};
+const HR_DOWN = "The HR system could not be reached, so your details cannot be checked right now. Registration needs HR's confirmation; please try again in a few minutes.";
 
-/** Ask HR's API when it is configured; otherwise compare with the record HR synchronised into JVzPay. */
+const localEmployee = (employeeId) => selectOne(
+  `SELECT e.*, d.code AS department_code, d.name AS department_name, p.title AS position_title FROM employees e
+     JOIN departments d ON d.id = e.department_id JOIN positions p ON p.id = e.position_id
+    WHERE (e.employee_no = ? OR e.hr_employee_id = ?) AND e.deleted_at IS NULL AND e.hr_employee_id IS NOT NULL
+    ORDER BY e.hr_employee_id = ? DESC LIMIT 1`, [employeeId, employeeId, employeeId]);
+
+/**
+ * HR decides (team decision 2026-11-16): POST {HR}/employees/verify → {match, eligible, mismatches, employee}.
+ * There is no offline registration: when HR cannot be reached, the registration is refused.
+ * Returns { emp, check } on success, or { refused: "mismatch", fields } / { refused: "not_eligible" }.
+ */
 async function verifyWithHr(v, dept) {
-  const emp = await selectOne(
-    `SELECT e.*, d.code AS department_code, d.name AS department_name, p.title AS position_title FROM employees e
-       JOIN departments d ON d.id = e.department_id JOIN positions p ON p.id = e.position_id
-      WHERE e.employee_no = ? AND e.deleted_at IS NULL AND e.hr_employee_id IS NOT NULL`, [v.employee_no]);
-  const hr = targetConfig("hr");
-  if (hr.connected) {
-    try {
-      const res = await fetch(`${hr.url}/api/v1/employees/verify`, {
-        method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${hr.token}` }, signal: AbortSignal.timeout(10000),
-        body: JSON.stringify({ employee_id: v.employee_no, full_name: v.full_name, email: v.email, department: dept.name, position: v.position_title, verification_reference: v.verification_code }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok || !body.match || !body.eligible) return null;
-      return emp ? { emp, check: "hr_api" } : null; // payroll needs the record HR synchronised, too
-    } catch {
-      throw badRequest("The HR system could not be reached. Try again in a few minutes.");
-    }
+  if (!targetConfig("hr").connected) throw badRequest(HR_DOWN);
+  let res, body;
+  try {
+    res = await callApp("hr", "POST", "/employees/verify",
+      { employee_id: v.employee_no, full_name: v.full_name, email: v.email, department: dept.name, department_code: dept.code, position: v.position_title, verification_reference: v.verification_code });
+    body = await res.json().catch(() => null);
+  } catch {
+    throw badRequest(HR_DOWN);
   }
-  if (!emp) return null;
-  const ok = nameMatches(v.full_name, emp)
-    && emp.department_id === Number(v.department_id) && norm(emp.position_title) === norm(v.position_title)
-    && !!emp.email && emp.email.trim().toLowerCase() === v.email
-    && !!emp.hr_verification_hash && emp.hr_verification_hash === sha256(v.verification_code.toUpperCase());
-  return ok ? { emp, check: "hr_snapshot" } : null;
+  if (res.status === 404) return { refused: "mismatch", fields: ["Employee ID"] };
+  if (!res.ok || !body || typeof body.match !== "boolean") throw badRequest(HR_DOWN);
+  if (!body.match) return { refused: "mismatch", fields: mismatchLabels(body.mismatches) };
+  if (body.eligible !== true) return { refused: "not_eligible" };
+  // HR confirmed the person. Payroll and the department login need JVzPay's copy of the record: bring it now if the
+  // 15-minute sync has not yet.
+  const hrId = body.employee?.employee_id || v.employee_no;
+  let emp = (await localEmployee(hrId)) || (await localEmployee(v.employee_no));
+  if (!emp) {
+    try { await syncOneEmployee(hrId); } catch (e) { if (e instanceof HrUnavailableError) throw badRequest(HR_DOWN); throw badRequest(`HR confirmed your details, but your HR record could not be loaded: ${e.message}. Please contact HR.`); }
+    emp = await localEmployee(hrId);
+  }
+  if (!emp) throw badRequest("HR confirmed your details, but your HR record could not be loaded yet. Please try again in a few minutes.");
+  return { emp, check: "hr_api" };
 }
 
 export async function register(req, body) {
@@ -94,9 +97,14 @@ export async function register(req, body) {
   if (!dept) return { errors: { department_id: "Choose your department." }, values: v };
 
   const match = await verifyWithHr(v, dept);
-  if (!match || !["active", "on_leave"].includes(match.emp.employment_status)) {
-    await audit(req, { action: "ess_registration_refused", module: "users", recordType: "employee", recordId: v.employee_no, remarks: "Details did not match HR" });
-    return { errors: { form: NO_MATCH }, values: v };
+  if (match.refused === "mismatch") {
+    await audit(req, { action: "ess_registration_refused", module: "users", recordType: "employee", recordId: v.employee_no, remarks: `Did not match HR: ${match.fields.join(", ") || "unspecified"}` });
+    const which = match.fields.length ? ` These do not match: ${match.fields.join(", ")}.` : "";
+    return { errors: { form: `${NO_MATCH}${which}` }, values: v };
+  }
+  if (match.refused === "not_eligible" || !["active", "on_leave"].includes(match.emp.employment_status)) {
+    await audit(req, { action: "ess_registration_refused", module: "users", recordType: "employee", recordId: v.employee_no, remarks: "HR: not eligible" });
+    return { errors: { form: NOT_ELIGIBLE }, values: v };
   }
   const { emp } = match;
   if (await selectOne("SELECT id FROM users WHERE employee_id = ? AND deleted_at IS NULL", [emp.id]))
@@ -119,7 +127,7 @@ export async function register(req, body) {
     await enqueue("hr", "EmployeeAccountActivated", emp.hr_employee_id, { employee_id: emp.hr_employee_id, employee_no: emp.employee_no, email: v.email, department_code: emp.department_code, position_title: emp.position_title, activated_at: new Date().toISOString() }, trx);
     return { id: insertId, userId, roleName: role.name };
   });
-  return { ...result, department: emp.department_name, departmentCode: emp.department_code, position: emp.position_title, signsInHere: emp.department_code === ACCOUNTING_DEPARTMENT || roleCode === "employee" };
+  return { ...result, department: emp.department_name, departmentCode: emp.department_code, position: emp.position_title, signsInHere: emp.department_code === accountingDepartment() || roleCode === "employee" };
 }
 
 export const registrations = () =>
@@ -127,41 +135,58 @@ export const registrations = () =>
             FROM employee_verification_records r LEFT JOIN users u ON u.id = r.user_id LEFT JOIN roles ro ON ro.id = u.role_id
            ORDER BY r.id DESC LIMIT 200`);
 
-// ---- sign-in for the other departments' applications (POST /api/v1/auth/login) ---------------------------------------------
-// The token decides which department may sign in: a CRM token accepts only CRM employees, and so on.
-const DEPARTMENT_BY_SOURCE = { johnvivz_crm: "CRM", johnvivz_inventory: "INVENTORY", johnvivz_hr: "HR" };
+// ---- sign-in for the other departments' applications (POST /api/integration/v1/auth/login) ------------------------------------
+// Team decision 2026-11-16: CRM and Inventory create a deactivated access account from HR's employee list and activate it
+// on the employee's first successful sign-in here. Only employees of the calling application's department, registered in
+// ESS and Active (or On Leave) in HR, are accepted. Every attempt is audited. Never returns salary, bank, government ID or
+// password data. The department codes of each application come from .env (HR's codes may differ from JVzPay's defaults).
+const DEPARTMENT_ENV = { johnvivz_crm: ["CRM_DEPARTMENT_CODES", "CRM"], johnvivz_inventory: ["INVENTORY_DEPARTMENT_CODES", "INVENTORY"], johnvivz_hr: ["HR_DEPARTMENT_CODES", "HR"] };
+export const departmentCodesFor = (source) => {
+  const [name, fallback] = DEPARTMENT_ENV[source] || [];
+  if (!name) return [];
+  return String(process.env[name] || fallback).split(",").map((c) => c.trim().toUpperCase()).filter(Boolean);
+};
+const INVALID = { error: "invalid_credentials" }, NOT_ALLOWED = { error: "not_allowed" };
+const manilaIso = (d) => (d ? `${new Date(new Date(d).getTime() + 8 * 3600 * 1000).toISOString().slice(0, 19)}+08:00` : null);
 
 export async function departmentSignIn(req, client, { email, password }) {
-  const deptCode = DEPARTMENT_BY_SOURCE[client.source];
-  const mail = String(email || "").trim().toLowerCase();
+  const codes = departmentCodesFor(client.source);
+  const mail = String(email || "").trim().toLowerCase().slice(0, 190);
   const user = mail ? await selectOne(
-    `SELECT u.*, r.code AS role_code, e.hr_employee_id, e.employee_no, e.employment_status, d.code AS department_code, d.name AS department_name, p.title AS position_title
-       FROM users u JOIN roles r ON r.id = u.role_id LEFT JOIN employees e ON e.id = u.employee_id
+    `SELECT u.*, r.code AS role_code, e.hr_employee_id, e.hr_employee_code, e.employee_no, e.employment_status, d.code AS department_code, d.name AS department_name, p.title AS position_title
+       FROM users u JOIN roles r ON r.id = u.role_id LEFT JOIN employees e ON e.id = u.employee_id AND e.deleted_at IS NULL
        LEFT JOIN departments d ON d.id = e.department_id LEFT JOIN positions p ON p.id = e.position_id
       WHERE u.email = ? AND u.deleted_at IS NULL`, [mail]) : null;
-  const refuse = async (reason, status = 401) => {
-    await audit(req, { action: "department_login_refused", module: "auth", recordType: "user", recordId: user?.id ?? mail.slice(0, 40), remarks: `${client.source}: ${reason}`, actor: user ? { id: user.id, full_name: user.full_name } : null });
-    return { status, body: { authenticated: false, error: status === 423 ? "The account is locked for a while after too many wrong passwords." : "Invalid email or password, or this account is not for this application." } };
+  // the same answer for an unknown email, a wrong password, a lock and an unregistered employee: nobody can tell which
+  const answer = async (status, body, reason) => {
+    await audit(req, { action: status === 200 ? "department_login" : "department_login_refused", module: "auth", recordType: "user", recordId: user?.id ?? mail.slice(0, 40),
+      remarks: `${client.source}: ${reason}`, actor: user ? { id: user.id, full_name: user.full_name } : null });
+    return { status, body };
   };
-  if (!user) return refuse("unknown email");
-  if (user.locked_until && new Date(user.locked_until) > new Date()) return refuse("locked", 423);
-  if (!(await bcrypt.compare(String(password || ""), user.password_hash))) {
+  if (!user) return answer(401, INVALID, "unknown email");
+  if (user.locked_until && new Date(user.locked_until) > new Date()) return answer(401, INVALID, "locked");
+  if (!(await bcrypt.compare(String(password || "").slice(0, 200), user.password_hash))) {
     const { env } = await import("../config/env.js");
     const attempts = user.failed_login_attempts + 1;
     if (attempts >= env.maxFailedLogins) await exec("UPDATE users SET failed_login_attempts = 0, locked_until = DATE_ADD(NOW(), INTERVAL ? MINUTE) WHERE id = ?", [env.lockoutMinutes, user.id]);
     else await exec("UPDATE users SET failed_login_attempts = ? WHERE id = ?", [attempts, user.id]);
-    return refuse("wrong password");
+    return answer(401, INVALID, "wrong password");
   }
-  if (user.status !== "active") return refuse("account inactive");
-  if (!deptCode || user.department_code !== deptCode) return refuse(`employee belongs to ${user.department_code || "no department"}`, 403);
-  if (!["active", "on_leave"].includes(user.employment_status)) return refuse(`employment ${user.employment_status}`, 403);
+  if (!user.employee_id || !user.hr_employee_id) return answer(401, INVALID, "not an ESS-registered employee");
+  if (!["active", "on_leave"].includes(user.employment_status)) return answer(403, NOT_ALLOWED, `employment ${user.employment_status}`);
+  if (user.status !== "active") return answer(403, NOT_ALLOWED, `ESS account ${user.status}`);
+  if (!codes.includes(String(user.department_code || "").toUpperCase())) return answer(403, NOT_ALLOWED, `employee belongs to ${user.department_code || "no department"}`);
+  const reg = await selectOne("SELECT created_at FROM employee_verification_records WHERE user_id = ? AND status = 'activated' ORDER BY id LIMIT 1", [user.id]);
   await exec("UPDATE users SET failed_login_attempts = 0, locked_until = NULL, last_login_at = NOW() WHERE id = ?", [user.id]);
-  await audit(req, { action: "department_login", module: "auth", recordType: "user", recordId: user.id, remarks: client.source, actor: { id: user.id, full_name: user.full_name } });
-  return {
-    status: 200,
-    body: {
-      authenticated: true,
-      user: { email: user.email, full_name: user.full_name, employee_id: user.hr_employee_id, employee_no: user.employee_no, department_code: user.department_code, department_name: user.department_name, position_title: user.position_title, employment_status: user.employment_status },
-    },
-  };
+  return answer(200, {
+    employee_id: user.hr_employee_id,
+    employee_code: user.hr_employee_code || null,
+    full_name: user.full_name,
+    email: user.email,
+    department_code: user.department_code,
+    department_name: user.department_name,
+    position: user.position_title,
+    employment_status: user.employment_status,
+    ess_registered_at: manilaIso(reg?.created_at || user.created_at),
+  }, "signed in");
 }

@@ -64,7 +64,7 @@ const shares = await select("SELECT full_name, share_percent FROM benefit_benefi
 check("life and accident insurance with two beneficiaries sharing equally", r.status === 302 && shares.length === 2 && shares.every((x) => x.share_percent === "50.00"), errText(r));
 r = await paolo.get("/payroll/enrollments");
 check("reviewers see who is covered and the beneficiaries", r.text.includes("Covers: Lito Dela Cruz") && r.text.includes("Beneficiaries: Lito Dela Cruz (Child, 50.00%)"));
-check("HR receives the verified dependent (outbox)", !!(await selectOne("SELECT id FROM integration_outbox WHERE event_type = 'DependentEnrolled'")));
+check("nothing is queued for HR about the dependent (HR is pull-only; HR_EVENTS_ENABLED off)", !(await selectOne("SELECT id FROM integration_outbox WHERE event_type = 'DependentEnrolled'")));
 r = await maria.submit("/my/benefits", `/my/benefits/benefit/${ben.id}/cancel`, {});
 check("the employee can cancel a pending enrollment", (await selectOne("SELECT status FROM benefit_enrollment_references WHERE id = ?", [ben.id])).status === "cancelled");
 

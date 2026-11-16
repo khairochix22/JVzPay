@@ -12,7 +12,7 @@ import { toCents, fromCents } from "../lib/money.js";
 import { badRequest, forbidden, notFound } from "../lib/errors.js";
 import { ensureBalances, remainingOf } from "./leaveService.js";
 import { fullName } from "./employeeService.js";
-import { routeFor, sendToDepartment, guardRouting, reportOutcome } from "./requestRouting.js";
+import { routeFor, guardRouting, reportOutcome } from "./requestRouting.js";
 import { startApproval } from "./supervisorApproval.js";
 
 const manilaToday = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
@@ -82,7 +82,6 @@ export async function requestConversion(req) {
       [no, employeeId, b.leave_type_id, year, days, fromCents(rate), fromCents(amount), req.user.id, routed], trx);
     // the immediate supervisor approves first; Accounting/Payroll give the final approval
     await startApproval("leave_conversion", insertId, approver, req, trx);
-    if (routed === "department") await sendToDepartment("leave_conversion", { no }, emp, { year, days, amount: fromCents(amount) }, trx);
     await exec("UPDATE leave_balances SET pending_days = pending_days + ? WHERE id = ?", [days, b.id], trx);
     await audit(req, { action: "leave_conversion_requested", module: "leave", recordType: "leave_conversion", recordId: insertId, next: { conversion_no: no, year, days, amount: fromCents(amount) } }, trx);
     return { no, days, amount: fromCents(amount), year };

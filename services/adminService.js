@@ -37,7 +37,7 @@ export async function withdrawAnnouncement(req, id) {
 
 // ---- system settings --------------------------------------------------------------------------------------------------------------
 export async function groupedSettings() {
-  const rows = await select("SELECT * FROM system_settings ORDER BY group_name, setting_key");
+  const rows = await select("SELECT * FROM system_settings WHERE group_name <> 'integration_status' ORDER BY group_name, setting_key"); // machine-written status is not a setting
   const groups = new Map();
   for (const r of rows) { if (!groups.has(r.group_name)) groups.set(r.group_name, []); groups.get(r.group_name).push({ ...r, field: r.setting_key.replace(/\./g, "__"), isBool: r.value_type === "boolean", isOn: ["1", "true", "yes", "on"].includes(String(r.setting_value).toLowerCase()), isTime: r.value_type === "time", isNumber: r.value_type === "number", isSchedule: r.setting_key === "payroll.contribution_schedule" }); }
   return [...groups].map(([name, items]) => ({ name, items }));
@@ -59,7 +59,7 @@ function checkSetting(s, raw) {
 }
 
 export async function saveSettings(req, body) {
-  const rows = await select("SELECT * FROM system_settings");
+  const rows = await select("SELECT * FROM system_settings WHERE group_name <> 'integration_status'");
   const changes = [];
   for (const s of rows) {
     const field = s.setting_key.replace(/\./g, "__");

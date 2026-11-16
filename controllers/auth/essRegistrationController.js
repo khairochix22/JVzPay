@@ -3,6 +3,7 @@
 // and works only for the employee's own department (JVzPay for Payroll/Accounting, the department's app otherwise).
 import { register } from "../../services/essRegistrationService.js";
 import { lookups } from "../../services/employeeService.js";
+import { accountingDepartment } from "../../lib/orgSettings.js";
 
 const render = async (res, extra = {}, status = 200) =>
   res.status(status).render("register-employee", { title: "Create your employee account", ...(await lookups()), form: {}, errors: {}, ...extra });
@@ -25,5 +26,5 @@ export const donePage = (req, res) => {
   const done = req.session.essRegistered;
   if (!done) return res.redirect("/register/employee");
   delete req.session.essRegistered;
-  res.render("register-employee-done", { title: "Account activated", done, here: done.departmentCode === "PAYROLL_ACCOUNTING" });
+  res.render("register-employee-done", { title: "Account activated", done, here: done.departmentCode === accountingDepartment() });
 };

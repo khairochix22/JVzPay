@@ -7,6 +7,8 @@
 storage/
 *.sql
 *.sql.gz
+# ...except the schema migrations: a fresh copy needs them to build the database (npm run migrate)
+!database/migrations/*.sql
 
 # Dependencies and machine files
 node_modules/

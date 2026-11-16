@@ -14,7 +14,7 @@ export const apply = wrap(async (req, res) => {
   if (Object.keys(errors).length) return render(req, res, { form: values, errors }, 422);
   try {
     const r = await applyOvertime(req, values);
-    req.flash("success_msg", `${r.no} (${r.hours} h) was sent to ${r.routed === "department" ? "your department supervisor through HR" : "the Accounting Supervisor"}.`);
+    req.flash("success_msg", `${r.no} (${r.hours} h) was submitted for approval.`);
     res.redirect("/my/overtime");
   } catch (e) {
     if (e instanceof HttpError && e.status < 500) return render(req, res, { form: values, errors: { form: e.message } }, e.status);

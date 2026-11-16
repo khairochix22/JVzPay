@@ -9,7 +9,7 @@ const required = (name) => {
 export const env = {
   nodeEnv: process.env.NODE_ENV || "development",
   isProd: process.env.NODE_ENV === "production",
-  port: Number(process.env.PORT || 3000),
+  port: Number(process.env.PORT || 3002), // JVzPay's agreed port in the JOHNVIVZ network (docs/API_INTEGRATION.md §6)
   db: {
     host: process.env.DB_HOST || "localhost",
     port: Number(process.env.DB_PORT || 3306),
