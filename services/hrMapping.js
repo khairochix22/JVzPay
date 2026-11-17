@@ -1,121 +1,117 @@
 // HR's pull API (HR sends no events) → the data of JVzPay's HR event handlers. Pure functions, unit-tested.
 //
-// HR's exact JSON was not available when this was written, so each field accepts the names JVzPay documented to HR
-// (docs/API_INTEGRATION.md §2.1, the EmployeeCreated fields) plus the usual alternatives. To follow HR's final shape,
-// change only this file. Every accepted name is listed in docs/API_INTEGRATION.md §7.
+// Field names follow HR's LIVE API as read on 2026-11-17 (GET /api/integration/v1/departments, /employees,
+// /employees/{id}, /payroll/employees/{id}/compensation, POST /employees/verify):
+//   lists      {success, data: {items: [...], page, page_size, total, total_pages}}   (departments: {success, data: [...]})
+//   detail     {success, data: {...}}
+//   department {department_id, department_code, department_name, description, active_headcount}
+//   employee   {employee_id (HR's internal number), permanent_employee_id (the JV-YYYY-NNNNN Employee ID), employee_code
+//               (the Employee Unique Code), first_name, last_name, full_name, email, phone_number,
+//               department: {department_id, department_code, department_name}, position (text), employment_type,
+//               work_schedule, reporting_supervisor_id (HR's internal number of the supervisor), hire_date, status}
+//   compensation  data.compensation = {as_of, compensation_version_id, basic_salary, compensation_basis, components,
+//               fixed_monthly_total}
+//   verify     {match, eligible, mismatches: ["email", ...], employee?}; 404 {match: false} for an unknown Employee ID
+// Not yet seen in a live answer (to confirm with HR's docs/integration-api-HR.md): the item shape of `components`, the
+// status words other than "Active", the employment_type values and the `employee` object of a matching verify.
 export class HrMappingError extends Error {}
 const fail = (m) => { throw new HrMappingError(m); };
 
 const blank = (v) => v === undefined || v === null || (typeof v === "string" && v.trim() === "");
-/** First non-empty value among the keys (a key may be a path such as "department.code"). */
-export function pick(o, ...keys) {
-  for (const k of keys) {
-    const v = k.split(".").reduce((x, p) => (x && typeof x === "object" ? x[p] : undefined), o);
-    if (!blank(v) && typeof v !== "object") return typeof v === "string" ? v.trim() : v;
-  }
-  return undefined;
-}
+const text = (v) => (blank(v) ? undefined : String(v).trim());
 const date10 = (v) => (blank(v) ? undefined : /^\d{4}-\d{2}-\d{2}/.test(String(v)) ? String(v).slice(0, 10) : undefined);
 
-/** The list inside a paged answer: {items}, {data}, {employees}, {departments}, {results}, {records} or a bare array. */
+/** The list in HR's answer: data.items (paged lists) or data (departments). */
 export function listOf(body) {
-  if (Array.isArray(body)) return body;
-  for (const k of ["items", "data", "employees", "departments", "compensations", "compensation", "results", "records"]) if (Array.isArray(body?.[k])) return body[k];
+  if (Array.isArray(body?.data?.items)) return body.data.items;
+  if (Array.isArray(body?.data)) return body.data;
   return [];
 }
-/** Total pages of a paged answer ({page, total_pages}, Laravel's meta.last_page, …); 1 when it does not say. */
+/** Total pages of HR's paged answer (data.total_pages); 1 when it does not say. */
 export function totalPagesOf(body) {
-  const n = Number(body?.total_pages ?? body?.meta?.last_page ?? body?.last_page ?? body?.pagination?.total_pages ?? body?.meta?.total_pages ?? 1);
+  const n = Number(body?.data?.total_pages ?? 1);
   return Number.isFinite(n) && n >= 1 ? Math.min(n, 500) : 1;
 }
-/** One record of a detail answer: the object itself, or {data}/{employee}. */
-export const recordOf = (body) => (body?.data && !Array.isArray(body.data) ? body.data : body?.employee && typeof body.employee === "object" ? body.employee : body);
+/** The record of HR's detail answer ({success, data}). */
+export const recordOf = (body) => (body?.data && typeof body.data === "object" && !Array.isArray(body.data) ? body.data : null);
 
-const STATUS = {
-  active: "active", regular: "active", employed: "active",
-  on_leave: "on_leave", "on leave": "on_leave", leave: "on_leave",
-  suspended: "suspended", inactive: "suspended",
-  resigned: "resigned",
-  terminated: "terminated", separated: "terminated", dismissed: "terminated",
-};
-/** HR's employment status in JVzPay's words (active, on_leave, suspended, resigned, terminated). */
+// HR's status words (team list: Active, On Leave, Suspended, Resigned, Terminated) in JVzPay's words
+const STATUS = { active: "active", "on leave": "on_leave", on_leave: "on_leave", suspended: "suspended", resigned: "resigned", terminated: "terminated" };
 export function employmentStatus(v) {
   if (blank(v)) return undefined;
-  const s = STATUS[String(v).trim().toLowerCase().replace(/-/g, "_")] ?? STATUS[String(v).trim().toLowerCase()];
+  const s = STATUS[String(v).trim().toLowerCase()];
   if (!s) fail(`unknown employment status "${String(v).slice(0, 30)}"`);
   return s;
 }
-const TYPES = { regular: "regular", permanent: "regular", "full_time": "regular", probationary: "probationary", contractual: "contractual", contract: "contractual", part_time: "part_time", seasonal: "seasonal" };
-const employmentType = (v) => (blank(v) ? undefined : TYPES[String(v).trim().toLowerCase().replace(/[- ]/g, "_")]);
+const TYPES = ["regular", "probationary", "contractual", "part_time", "seasonal"];
+const employmentType = (v) => { const t = blank(v) ? null : String(v).trim().toLowerCase().replace(/[- ]/g, "_"); return TYPES.includes(t) ? t : undefined; };
 
 export function mapDepartment(item) {
-  const code = pick(item, "department_code", "code");
-  if (!code) fail("department without a code");
-  const status = String(pick(item, "status") ?? "").toLowerCase();
-  return { department_code: String(code), department_name: pick(item, "department_name", "name"), is_active: item.is_active !== false && item.is_active !== 0 && status !== "inactive" };
+  const code = text(item?.department_code);
+  if (!code) fail("department without department_code");
+  return { department_code: code, department_name: text(item.department_name), is_active: item.is_active !== false };
 }
 
+/** HR's internal employee number → JV Employee ID, from HR's employee list (to resolve reporting_supervisor_id). */
+export function supervisorMap(items) {
+  const m = new Map();
+  for (const it of items || []) if (it?.employee_id !== undefined && !blank(it.permanent_employee_id)) m.set(String(it.employee_id), String(it.permanent_employee_id));
+  return m;
+}
+
+/** An HR account without a JV Employee ID (HR's "System account" users) is not an employee: the sync skips it. */
+export const isEmployeeRecord = (item) => !blank(item?.permanent_employee_id);
+
 /**
- * One HR employee → EmployeeCreated/EmployeeUpdated data. `departments` maps HR's department id to {code, name}
- * (from /departments) for an employee that carries only a department id.
+ * One HR employee → EmployeeCreated/EmployeeUpdated data. `supervisors` (supervisorMap of HR's list) turns
+ * reporting_supervisor_id into the supervisor's JV number; without the map the supervisor is left unchanged.
  */
-export function mapEmployee(item, departments = new Map()) {
-  const employeeId = pick(item, "employee_id", "employee_no", "employee_number");
-  if (!employeeId) fail("employee without employee_id");
-  let first = pick(item, "first_name", "given_name"), last = pick(item, "last_name", "surname", "family_name");
-  const full = pick(item, "full_name", "name");
-  if ((!first || !last) && full) {
-    const words = String(full).split(/\s+/);
-    last = last || words.pop();
-    first = first || words.join(" ");
-  }
-  const deptId = pick(item, "department_id", "department.id");
-  const dept = deptId !== undefined ? departments.get(String(deptId)) : undefined;
-  const department_code = pick(item, "department_code", "department.code") ?? dept?.code;
+export function mapEmployee(item, supervisors = null) {
+  const jv = text(item?.permanent_employee_id);
+  if (!jv) fail(`HR employee ${item?.employee_id ?? "?"} has no permanent_employee_id (Employee ID)`);
+  const dept = item.department && typeof item.department === "object" ? item.department : {};
   const data = {
-    employee_id: String(employeeId),
-    employee_no: String(pick(item, "employee_no", "employee_number") ?? employeeId),
-    first_name: first, middle_name: pick(item, "middle_name"), last_name: last, suffix: pick(item, "suffix"),
-    birth_date: date10(pick(item, "birth_date", "date_of_birth")),
-    email: pick(item, "email", "onboarding_email", "personal_email", "work_email"),
-    phone: pick(item, "phone", "mobile", "mobile_number", "contact_number"),
-    department_code: department_code !== undefined ? String(department_code) : undefined,
-    department_name: pick(item, "department_name", "department.name") ?? dept?.name,
-    position_title: pick(item, "position_title", "position.title", "position.name", "position", "job_title"),
-    employment_type: employmentType(pick(item, "employment_type")),
-    employment_status: employmentStatus(pick(item, "employment_status", "status")) ?? "active",
-    date_hired: date10(pick(item, "date_hired", "hire_date", "hired_at", "date_joined", "start_date")),
-    verification_reference: pick(item, "unique_code", "employee_unique_code", "employee_code", "verification_reference", "verification_code"),
-    employee_code: pick(item, "employee_code", "unique_code", "employee_unique_code"),
+    employee_id: jv,
+    employee_no: jv,
+    first_name: text(item.first_name), last_name: text(item.last_name),
+    email: text(item.email), phone: text(item.phone_number),
+    department_code: text(dept.department_code), department_name: text(dept.department_name),
+    position_title: text(item.position),
+    employment_type: employmentType(item.employment_type),
+    employment_status: employmentStatus(item.status) ?? "active",
+    date_hired: date10(item.hire_date),
+    verification_reference: text(item.employee_code),
+    employee_code: text(item.employee_code),
   };
-  const sup = pick(item, "supervisor_employee_id", "immediate_supervisor_employee_id", "team_leader_employee_id", "supervisor.employee_id");
-  if (sup !== undefined || "supervisor_employee_id" in item) data.supervisor_employee_id = sup ?? null;
+  if (supervisors) {
+    const sup = item.reporting_supervisor_id;
+    if (blank(sup)) data.supervisor_employee_id = null;
+    else if (supervisors.has(String(sup))) data.supervisor_employee_id = supervisors.get(String(sup));
+  }
   const missing = ["first_name", "last_name", "department_code", "position_title", "date_hired"].filter((k) => blank(data[k]));
-  if (missing.length) fail(`employee ${employeeId}: HR did not send ${missing.join(", ")}`);
+  if (missing.length) fail(`employee ${jv}: HR did not send ${missing.join(", ").replace("department_code", "department.department_code").replace("position_title", "position").replace("date_hired", "hire_date")}`);
   for (const k of Object.keys(data)) if (data[k] === undefined) delete data[k];
   return data;
 }
 
-/** When HR says the employee left (separation date, or the date of the status change); defaults to `today`. */
-export const separationDate = (item, today) => date10(pick(item, "separation_date", "date_separated", "status_effective_date", "effective_date")) || today;
+/** HR has no separation date field: a separation is dated on the day the sync sees it. */
+export const separationDate = (item, today) => today;
 
-/** One approved compensation (from HR's /payroll endpoint, or embedded in the employee) → EmployeeCompensationApproved data. */
-export function mapCompensation(item, employeeId = undefined) {
-  const id = employeeId ?? pick(item, "employee_id", "employee_no", "employee.employee_id");
-  const salary = pick(item, "basic_salary", "monthly_salary", "basic_pay", "salary", "amount");
-  if (!id || salary === undefined) return null; // no compensation in this record
-  const basis = String(pick(item, "rate_basis", "rate_type", "salary_basis") ?? "monthly").toLowerCase();
-  const effective = date10(pick(item, "effective_date", "effective_from", "approved_at", "date_effective"));
-  if (!effective) fail(`compensation of ${id}: HR did not send effective_date`);
-  const freq = pick(item, "pay_frequency");
-  const allowances = Array.isArray(item.allowances)
-    ? item.allowances.map((a) => ({ code: pick(a, "code", "component_code"), amount: pick(a, "amount") })).filter((a) => a.code)
-    : undefined;
+/**
+ * HR's approved compensation (data.compensation of GET /payroll/employees/{id}/compensation) → EmployeeCompensationApproved
+ * data, or null when HR has no salary for the employee.
+ */
+export function mapCompensation(comp, employeeId) {
+  if (!comp || typeof comp !== "object" || blank(comp.basic_salary) || !employeeId) return null;
+  const basis = String(comp.compensation_basis ?? "monthly").toLowerCase();
+  if (!["monthly", "daily"].includes(basis)) fail(`compensation of ${employeeId}: compensation_basis "${basis}" is not monthly or daily`);
+  const effective = date10(comp.as_of);
+  if (!effective) fail(`compensation of ${employeeId}: HR did not send as_of`);
   const out = {
-    employee_id: String(id), basic_salary: salary, rate_basis: ["daily", "day"].includes(basis) ? "daily" : "monthly", effective_date: effective,
-    pay_frequency: freq ? String(freq).toLowerCase().replace(/[- ]/g, "_") : undefined,
-    allowances, approval_reference: pick(item, "approval_reference", "reference_no"),
-    compensation_version_id: pick(item, "compensation_version_id", "version_id", "version"),
+    employee_id: String(employeeId), basic_salary: comp.basic_salary, rate_basis: basis, effective_date: effective,
+    compensation_version_id: blank(comp.compensation_version_id) ? undefined : String(comp.compensation_version_id),
+    // components: item shape not seen yet (HR's answers had none); code + amount assumed
+    allowances: Array.isArray(comp.components) && comp.components.length ? comp.components.map((c) => ({ code: text(c.code ?? c.component_code), amount: c.amount })).filter((c) => c.code) : undefined,
   };
   for (const k of Object.keys(out)) if (out[k] === undefined) delete out[k];
   return out;
@@ -123,15 +119,15 @@ export function mapCompensation(item, employeeId = undefined) {
 
 // ---- ESS registration check (POST {HR}/employees/verify → {match, eligible, mismatches, employee}) ------------------------
 const FIELD_LABELS = {
-  employee_id: "Employee ID", employee_no: "Employee ID", full_name: "Full name", name: "Full name", first_name: "Full name", last_name: "Full name",
-  email: "Email", department: "Department", department_code: "Department", department_id: "Department", position: "Position",
-  position_title: "Position", verification_reference: "Unique code", unique_code: "Unique code", employee_code: "Unique code", code: "Unique code",
+  employee_id: "Employee ID", permanent_employee_id: "Employee ID", full_name: "Full name", first_name: "Full name", last_name: "Full name",
+  email: "Email", department: "Department", department_code: "Department", position: "Position",
+  employee_code: "Unique code", verification_reference: "Unique code",
 };
 /** HR's mismatches (field names, or objects with a field) as form labels, never with HR's values. */
 export function mismatchLabels(mismatches) {
   const list = Array.isArray(mismatches) ? mismatches : mismatches && typeof mismatches === "object" ? Object.keys(mismatches) : [];
   const labels = list.map((m) => {
-    const f = String(typeof m === "object" && m ? m.field ?? m.name ?? "" : m).trim().toLowerCase();
+    const f = String(typeof m === "object" && m ? m.field ?? "" : m).trim().toLowerCase();
     return FIELD_LABELS[f] || (f ? f.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()) : null);
   }).filter(Boolean);
   return [...new Set(labels)];

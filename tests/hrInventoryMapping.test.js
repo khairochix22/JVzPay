@@ -2,77 +2,81 @@
 // Pure unit tests (no database). Run: npm test
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mapEmployee, mapDepartment, mapCompensation, employmentStatus, listOf, totalPagesOf, recordOf, separationDate, mismatchLabels, HrMappingError } from "../services/hrMapping.js";
+import { mapEmployee, mapDepartment, mapCompensation, employmentStatus, listOf, totalPagesOf, recordOf, separationDate, mismatchLabels, supervisorMap, isEmployeeRecord, HrMappingError } from "../services/hrMapping.js";
 import { mapPurchaseOrder, mapGoodsReceipt, envelopeFromOutbox, outboxItems, NO_POSTING, NOT_SENT_BY_INVENTORY, InventoryMappingError } from "../services/inventoryMapping.js";
 import { eventsEnabled } from "../services/integrationService.js";
 
+// shapes of HR's LIVE API (read 2026-11-17); personal values below are made up
 const hrEmployee = (over = {}) => ({
-  id: 77, employee_id: "JV-2026-00012", first_name: "Andrea", middle_name: "Lopez", last_name: "Bautista", email: "new.hire@example.com",
-  department_id: 3, position: { id: 9, title: "Agent" }, employment_status: "Active", hire_date: "2026-11-02T00:00:00+08:00",
-  employee_code: "QX-5521-AB", supervisor_employee_id: "JV-2025-00004", ...over,
+  employee_id: 104, permanent_employee_id: "JV-2026-00004", employee_code: "BAUTISTA11172026", first_name: "Kristine", last_name: "Bautista",
+  full_name: "Kristine Bautista", email: "new.hire@example.com", phone_number: "09170000000",
+  department: { department_id: 4, department_code: "CRM", department_name: "CRM System" }, position: "Agent", employment_type: null,
+  work_schedule: null, reporting_supervisor_id: 103, hire_date: "2026-11-17", status: "Active", ...over,
 });
-const depts = new Map([["3", { code: "CRM", name: "Customer Relations" }]]);
 
-test("HR employee → EmployeeCreated data (JV number, department by id, nested position, unique code)", () => {
-  const d = mapEmployee(hrEmployee(), depts);
-  assert.equal(d.employee_id, "JV-2026-00012");
-  assert.equal(d.employee_no, "JV-2026-00012");
+test("HR employee (live API shape) → EmployeeCreated data", () => {
+  const d = mapEmployee(hrEmployee(), supervisorMap([{ employee_id: 103, permanent_employee_id: "JV-2025-00003" }]));
+  assert.equal(d.employee_id, "JV-2026-00004", "JVzPay keys employees by the JV Employee ID (permanent_employee_id)");
+  assert.equal(d.employee_no, "JV-2026-00004");
   assert.equal(d.department_code, "CRM");
-  assert.equal(d.department_name, "Customer Relations");
+  assert.equal(d.department_name, "CRM System");
   assert.equal(d.position_title, "Agent");
   assert.equal(d.employment_status, "active");
-  assert.equal(d.date_hired, "2026-11-02");
-  assert.equal(d.verification_reference, "QX-5521-AB");
-  assert.equal(d.employee_code, "QX-5521-AB");
-  assert.equal(d.supervisor_employee_id, "JV-2025-00004");
-  assert.ok(!("phone" in d), "fields HR does not send are left out, not sent as empty");
+  assert.equal(d.date_hired, "2026-11-17");
+  assert.equal(d.verification_reference, "BAUTISTA11172026");
+  assert.equal(d.employee_code, "BAUTISTA11172026");
+  assert.equal(d.phone, "09170000000");
+  assert.equal(d.supervisor_employee_id, "JV-2025-00003", "reporting_supervisor_id (HR's internal number) becomes the supervisor's JV number");
+  assert.ok(!("employment_type" in d), "an unknown or empty employment_type is left out");
+  assert.ok(!("supervisor_employee_id" in mapEmployee(hrEmployee())), "without HR's list the supervisor is left unchanged");
+  assert.equal(mapEmployee(hrEmployee({ reporting_supervisor_id: null }), new Map()).supervisor_employee_id, null);
 });
 
-test("HR employee: full_name is split, codes given directly, missing data is refused with the field names", () => {
-  const d = mapEmployee({ employee_id: "JV-2026-00013", full_name: "Rico de la Cruz Navarro", department_code: "PAYROLL_ACCOUNTING", position_title: "Payroll Staff", date_hired: "2026-11-02" });
-  assert.equal(d.first_name, "Rico de la Cruz");
-  assert.equal(d.last_name, "Navarro");
-  assert.throws(() => mapEmployee({ employee_id: "JV-1", first_name: "A", last_name: "B" }), (e) => e instanceof HrMappingError && /department_code, position_title, date_hired/.test(e.message));
-  assert.throws(() => mapEmployee({ first_name: "A" }), /without employee_id/);
+test("HR employee: system accounts are not employees; missing data is refused with HR's field names", () => {
+  const system = { employee_id: 1, permanent_employee_id: null, position: "System account", status: "Active" };
+  assert.equal(isEmployeeRecord(system), false);
+  assert.equal(isEmployeeRecord(hrEmployee()), true);
+  assert.throws(() => mapEmployee(system), /no permanent_employee_id/);
+  assert.throws(() => mapEmployee(hrEmployee({ position: null, hire_date: null })), (e) => e instanceof HrMappingError && /HR did not send position, hire_date/.test(e.message));
 });
 
-test("HR employment status words", () => {
+test("HR employment status words (Active, On Leave, Suspended, Resigned, Terminated)", () => {
+  assert.equal(employmentStatus("Active"), "active");
+  assert.equal(employmentStatus("On Leave"), "on_leave");
+  assert.equal(employmentStatus("Suspended"), "suspended");
   assert.equal(employmentStatus("Resigned"), "resigned");
   assert.equal(employmentStatus("TERMINATED"), "terminated");
-  assert.equal(employmentStatus("separated"), "terminated");
-  assert.equal(employmentStatus("On Leave"), "on_leave");
-  assert.equal(employmentStatus("on-leave"), "on_leave");
-  assert.equal(employmentStatus("inactive"), "suspended");
-  assert.throws(() => employmentStatus("retired-ish"), /unknown employment status/);
+  assert.throws(() => employmentStatus("separated"), /unknown employment status/, "words HR does not use are reported, not guessed");
 });
 
-test("HR departments, paging and detail answers", () => {
-  assert.deepEqual(mapDepartment({ id: 3, code: "CRM", name: "Customer Relations", status: "active" }), { department_code: "CRM", department_name: "Customer Relations", is_active: true });
-  assert.equal(mapDepartment({ code: "OLD", name: "Old", is_active: false }).is_active, false);
-  assert.deepEqual(listOf({ items: [1, 2], page: 1, total_pages: 3 }), [1, 2]);
-  assert.deepEqual(listOf({ data: [1] }), [1]);
-  assert.deepEqual(listOf([5]), [5]);
-  assert.equal(totalPagesOf({ items: [], page: 1, total_pages: 3 }), 3);
-  assert.equal(totalPagesOf({ data: [], meta: { last_page: 4 } }), 4);
-  assert.equal(totalPagesOf({ items: [] }), 1);
-  assert.deepEqual(recordOf({ data: { employee_id: "x" } }), { employee_id: "x" });
-  assert.deepEqual(recordOf({ employee_id: "y" }), { employee_id: "y" });
-  assert.equal(separationDate({ separation_date: "2026-11-15" }, "2026-11-16"), "2026-11-15");
-  assert.equal(separationDate({}, "2026-11-16"), "2026-11-16");
+test("HR departments, paging and detail answers (live shapes)", () => {
+  assert.deepEqual(mapDepartment({ department_id: 2, department_code: "ACCOUNTING", department_name: "Accounting/Payroll", description: "x", active_headcount: 0 }), { department_code: "ACCOUNTING", department_name: "Accounting/Payroll", is_active: true });
+  assert.throws(() => mapDepartment({ department_id: 9 }), /department_code/);
+  const list = { success: true, data: { items: [1, 2], page: 1, page_size: 50, total: 3, total_pages: 2 }, message: "", errors: {} };
+  assert.deepEqual(listOf(list), [1, 2]);
+  assert.equal(totalPagesOf(list), 2);
+  assert.deepEqual(listOf({ success: true, data: [7] }), [7], "departments come as data: [...]");
+  assert.equal(totalPagesOf({ success: true, data: [7] }), 1);
+  assert.deepEqual(recordOf({ success: true, data: { employee_id: 1 } }), { employee_id: 1 });
+  assert.equal(recordOf(null), null);
+  assert.equal(separationDate({}, "2026-11-17"), "2026-11-17", "HR sends no separation date: the day the sync sees it");
 });
 
-test("HR approved compensation → EmployeeCompensationApproved data", () => {
-  assert.deepEqual(mapCompensation({ employee_id: "JV-2026-00012", basic_salary: "16500.00", rate_basis: "Monthly", pay_frequency: "semi-monthly", effective_date: "2026-11-01", allowances: [{ code: "RICE", amount: "1500" }], version_id: 4 }), {
-    employee_id: "JV-2026-00012", basic_salary: "16500.00", rate_basis: "monthly", effective_date: "2026-11-01", pay_frequency: "semi_monthly", allowances: [{ code: "RICE", amount: "1500" }], compensation_version_id: 4,
+test("HR approved compensation (data.compensation) → EmployeeCompensationApproved data", () => {
+  assert.deepEqual(mapCompensation({ as_of: "2026-11-17", compensation_version_id: 4, basic_salary: 16500, compensation_basis: "monthly", components: [], fixed_monthly_total: 16500 }, "JV-2026-00004"), {
+    employee_id: "JV-2026-00004", basic_salary: 16500, rate_basis: "monthly", effective_date: "2026-11-17", compensation_version_id: "4",
   });
-  assert.equal(mapCompensation({ employee_id: "JV-1", daily_rate: "560" }), null, "a record without a salary is not compensation");
-  assert.throws(() => mapCompensation({ employee_id: "JV-1", basic_salary: "1" }), /effective_date/);
+  assert.equal(mapCompensation({ as_of: "2026-11-17", compensation_version_id: null, basic_salary: 560, compensation_basis: "daily", components: [] }, "JV-1").rate_basis, "daily");
+  assert.equal(mapCompensation(null, "JV-1"), null, "no compensation object: nothing to record");
+  assert.equal(mapCompensation({ as_of: "2026-11-17", basic_salary: null }, "JV-1"), null);
+  assert.throws(() => mapCompensation({ basic_salary: 1, compensation_basis: "monthly" }, "JV-1"), /as_of/);
+  assert.throws(() => mapCompensation({ basic_salary: 1, as_of: "2026-11-17", compensation_basis: "hourly" }, "JV-1"), /hourly/);
 });
 
 test("registration check: HR's mismatches become form labels, never values", () => {
-  assert.deepEqual(mismatchLabels(["email", "position", "verification_reference"]), ["Email", "Position", "Unique code"]);
-  assert.deepEqual(mismatchLabels([{ field: "full_name", expected: "SECRET VALUE" }, { field: "department" }]), ["Full name", "Department"]);
-  assert.deepEqual(mismatchLabels({ email: "hr@example.com" }), ["Email"]);
+  assert.deepEqual(mismatchLabels(["email"]), ["Email"], "HR's live answer: mismatches: [\"email\"]");
+  assert.deepEqual(mismatchLabels(["full_name", "department", "position", "employee_code", "verification_reference"]), ["Full name", "Department", "Position", "Unique code"]);
+  assert.deepEqual(mismatchLabels([{ field: "email", hr_value: "hr@example.com" }]), ["Email"]);
   assert.deepEqual(mismatchLabels(undefined), []);
   assert.ok(!JSON.stringify(mismatchLabels([{ field: "email", hr_value: "hr@example.com" }])).includes("hr@example.com"));
 });
@@ -120,7 +124,16 @@ test("Inventory events without an agreed accounting entry, and JVzPay events Inv
   assert.deepEqual(NOT_SENT_BY_INVENTORY, ["SupplierInvoiceReceived", "StockAdjusted", "InventoryValuationReported"]);
 });
 
-test("position → JVzPay role (POSITION_ROLES): only Payroll/Accounting titles get a working role", async () => {
+
+// the org settings tests use the documented defaults, whatever the developer's .env says
+const withDefaultOrgSettings = async (fn) => {
+  const keys = ["ACCOUNTING_DEPARTMENT_CODE", "POSITION_ROLES", "DEPARTMENT_SUPERVISOR_TITLES"];
+  const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+  for (const k of keys) delete process.env[k];
+  try { await fn(); } finally { for (const k of keys) if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; }
+};
+
+test("position → JVzPay role (POSITION_ROLES): only Payroll/Accounting titles get a working role", () => withDefaultOrgSettings(async () => {
   const { roleForPosition, parsePositionRoles } = await import("../lib/orgSettings.js");
   assert.equal(roleForPosition("PAYROLL_ACCOUNTING", "Accounting Supervisor"), "accounting_supervisor");
   assert.equal(roleForPosition("PAYROLL_ACCOUNTING", "accounting  staff"), "accounting_staff");
@@ -129,9 +142,9 @@ test("position → JVzPay role (POSITION_ROLES): only Payroll/Accounting titles 
   assert.equal(roleForPosition("CRM", "Accounting Supervisor"), "employee", "another department's titles are always employee");
   assert.equal(roleForPosition("PAYROLL_ACCOUNTING", "Bookkeeper", parsePositionRoles("Bookkeeper=accounting_staff,Boss=superuser")), "accounting_staff");
   assert.equal(parsePositionRoles("Boss=superuser").size, 0, "unknown roles are ignored");
-});
+}));
 
-test("department supervisor titles (DEPARTMENT_SUPERVISOR_TITLES): ranked, per department", async () => {
+test("department supervisor titles (DEPARTMENT_SUPERVISOR_TITLES): ranked, per department", () => withDefaultOrgSettings(async () => {
   const { higherSupervisorTitles, isSupervisorTitle, parseSupervisorTitles } = await import("../lib/orgSettings.js");
   assert.deepEqual(higherSupervisorTitles("CRM", "Agent"), ["crm manager", "team leader"]);
   assert.deepEqual(higherSupervisorTitles("CRM", "Team Leader"), ["crm manager"]);
@@ -142,7 +155,7 @@ test("department supervisor titles (DEPARTMENT_SUPERVISOR_TITLES): ranked, per d
   assert.deepEqual(higherSupervisorTitles("DELI", "Clerk"), [], "a department without supervisor titles");
   assert.ok(isSupervisorTitle("INVENTORY", "Inventory Supervisor") && !isSupervisorTitle("INVENTORY", "Staff") && !isSupervisorTitle("CRM", "HR Manager"));
   assert.deepEqual(parseSupervisorTitles("crm=Boss|Lead").get("CRM"), ["boss", "lead"]);
-});
+}));
 
 test("Inventory poll uses only Inventory's own token", async () => {
   const { tokenProblem } = await import("../services/inventoryPollService.js");

@@ -51,7 +51,7 @@ const accDept = await selectOne("SELECT id FROM departments WHERE code = 'PAYROL
 
 // ---- 2. the CRM agent is encoded in HR after that sync, and registers in ESS
 await hrCtl("employees", { employee_id: "JV-2026-00901", first_name: "Andrea", middle_name: "Lopez", last_name: "Bautista", email: "andrea.bautista@gmail.com", department_id: 2, position: { title: "Agent" },
-  employment_status: "Active", hire_date: "2026-11-02", employee_code: "QX-5521-AB" });
+  employment_status: "Active", hire_date: "2026-11-02", employee_code: "QX-5521-AB", listed: false }); // like a new hire HR does not list in /employees yet
 check("she is not in JVzPay yet", !(await selectOne("SELECT id FROM employees WHERE hr_employee_id = 'JV-2026-00901'")));
 const anon = new Client(base);
 r = await anon.get("/register/employee");
@@ -80,7 +80,8 @@ r = await anon.get("/register/employee/done");
 check("the confirmation says to sign in to the CRM application (HR's department name)", r.text.includes("Account activated") && r.text.includes("Customer Relation Management</strong> application"));
 const andreaUser = await selectOne("SELECT u.*, r.code AS role_code FROM users u JOIN roles r ON r.id = u.role_id WHERE u.email = 'andrea.bautista@gmail.com'");
 check("account is active, linked to the HR record, Self-Service role", andreaUser?.status === "active" && andreaUser.role_code === "employee" && !!andreaUser.employee_id && andreaUser.must_change_password === 0);
-check("her HR record was fetched from HR on registration", !!(await selectOne("SELECT id FROM employees WHERE id = ? AND hr_employee_id = 'JV-2026-00901' AND hr_employee_code = 'QX-5521-AB'", [andreaUser?.employee_id])));
+await hrCtl("employees", { employee_id: "JV-2026-00901", listed: true }); // HR lists her from now on
+check("her HR record came from HR's verify answer (HR does not list her yet)", !!(await selectOne("SELECT id FROM employees WHERE id = ? AND hr_employee_id = 'JV-2026-00901' AND hr_employee_code = 'QX-5521-AB'", [andreaUser?.employee_id])));
 check("the registration is recorded as checked by HR's API", (await selectOne("SELECT hr_check, password_hash FROM employee_verification_records WHERE user_id = ?", [andreaUser?.id]))?.hr_check === "hr_api");
 const calls = await hrCtl("calls");
 check("JVzPay called HR's verify with the API key", calls.some((c) => c.method === "POST" && c.path === "/api/integration/v1/employees/verify" && c.ok) && calls.every((c) => c.ok));

@@ -1,4 +1,4 @@
-// Fake HR and Inventory applications for the end-to-end tests, written from the team decisions of 2026-11-16:
+// Fake HR and Inventory applications for the end-to-end tests. HR answers in the shape of HR's LIVE API (2026-11-17):
 //   HR (pull-only, Bearer key): GET /api/integration/v1/departments, /employees (paged), /employees/:identifier,
 //     /payroll/employees/:identifier/compensation; POST /employees/verify → {match, eligible, mismatches, employee}
 //   Inventory (Bearer token): GET /api/integration/v1/accounting/outbox, POST /accounting/outbox/:eventId/ack
@@ -19,7 +19,24 @@ function readBody(req) {
 const send = (res, status, body) => { res.writeHead(status, { "content-type": "application/json" }); res.end(JSON.stringify(body)); };
 
 function hrApp(token) {
-  const s = { departments: [], employees: new Map(), compensation: [], down: false, calls: [], pageSize: 2 };
+  // Test stages give simple records: {employee_id (JV number), first_name, last_name, email, department_id, position:{title},
+  // employment_status, hire_date, employee_code, supervisor_employee_id (JV), listed (false = a new hire HR does not list
+  // yet)}. The fake answers in the SHAPE OF HR'S LIVE API (read 2026-11-17): internal employee_id + permanent_employee_id,
+  // department object, position text, status, reporting_supervisor_id (internal), {success, data:{items, …}} lists.
+  const s = { departments: [], employees: new Map(), internal: new Map(), nextId: 100, compensation: [], down: false, calls: [], pageSize: 2 };
+  const internalOf = (jv) => { if (!s.internal.has(jv)) s.internal.set(jv, s.nextId++); return s.internal.get(jv); };
+  const dept = (id) => s.departments.find((d) => d.id === id) || {};
+  const real = (e) => ({
+    employee_id: internalOf(e.employee_id), permanent_employee_id: e.employee_id, employee_code: e.employee_code ?? null,
+    first_name: e.first_name, last_name: e.last_name, full_name: `${e.first_name} ${e.last_name}`, email: e.email, phone_number: null,
+    department: { department_id: e.department_id, department_code: dept(e.department_id).code, department_name: dept(e.department_id).name },
+    position: e.position?.title ?? null, employment_type: null, work_schedule: null,
+    reporting_supervisor_id: e.supervisor_employee_id ? internalOf(e.supervisor_employee_id) : null, hire_date: e.hire_date, status: e.employment_status,
+  });
+  // HR also lists its own system accounts, which have no JV Employee ID
+  const systemAccount = { employee_id: 1, permanent_employee_id: null, employee_code: null, first_name: "System", last_name: "Account", full_name: "System Account", email: "system@hr.local", phone_number: null,
+    department: { department_id: 1, department_code: "HR", department_name: "HR" }, position: "System account", employment_type: null, work_schedule: null, reporting_supervisor_id: null, hire_date: "2000-01-01", status: "Active" };
+  const ok = (data) => ({ success: true, data, message: "OK", errors: {} });
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, "http://x");
     const body = await readBody(req);
@@ -34,39 +51,44 @@ function hrApp(token) {
     }
     s.calls.push({ method: req.method, path: url.pathname + url.search, authorization: req.headers.authorization ? "Bearer ***" : null, ok: req.headers.authorization === `Bearer ${token}` });
     if (s.down) return req.socket.destroy(); // "cannot be reached"
-    if (req.headers.authorization !== `Bearer ${token}`) return send(res, 401, { error: "unauthorized" });
+    if (req.headers.authorization !== `Bearer ${token}`) return send(res, 401, { success: false, data: null, message: "Unauthorized", errors: {} });
     const path = url.pathname.startsWith(PREFIX) ? url.pathname.slice(PREFIX.length) : null;
-    const paged = (all) => {
-      const page = Math.max(1, Number(url.searchParams.get("page")) || 1);
-      return { items: all.slice((page - 1) * s.pageSize, page * s.pageSize), page, total_pages: Math.max(1, Math.ceil(all.length / s.pageSize)) };
-    };
-    if (req.method === "GET" && path === "/departments") return send(res, 200, { items: s.departments, page: 1, total_pages: 1 });
-    if (req.method === "GET" && path === "/employees") return send(res, 200, paged([...s.employees.values()]));
-    if (req.method === "GET" && path?.startsWith("/employees/")) {
-      const id = decodeURIComponent(path.slice(11));
-      const e = s.employees.get(id) || [...s.employees.values()].find((x) => x.employee_id.toLowerCase() === id.toLowerCase());
-      return e ? send(res, 200, { data: e }) : send(res, 404, { error: "not_found" });
+    const listed = () => [systemAccount, ...[...s.employees.values()].filter((e) => e.listed !== false).map(real)];
+    const byInternal = (id) => listed().find((e) => String(e.employee_id) === String(id));
+    if (req.method === "GET" && path === "/health") return send(res, 200, { status: "ok", app: "johnvivz_hr" });
+    if (req.method === "GET" && path === "/departments") return send(res, 200, ok(s.departments.map((d) => ({ department_id: d.id, department_code: d.code, department_name: d.name, description: null, active_headcount: 0 }))));
+    if (req.method === "GET" && path === "/employees") {
+      const all = listed(), page = Math.max(1, Number(url.searchParams.get("page")) || 1);
+      return send(res, 200, ok({ items: all.slice((page - 1) * s.pageSize, page * s.pageSize), page, page_size: s.pageSize, total: all.length, total_pages: Math.max(1, Math.ceil(all.length / s.pageSize)) }));
     }
-    const comp = /^\/payroll\/employees\/([^/]+)\/compensation$/.exec(path || "");
-    if (req.method === "GET" && comp) {
-      const c = s.compensation.find((x) => x.employee_id.toLowerCase() === decodeURIComponent(comp[1]).toLowerCase());
-      return c ? send(res, 200, { data: c }) : send(res, 404, { error: "not_found" });
+    let m = /^\/employees\/([^/]+)$/.exec(path || "");
+    if (req.method === "GET" && m) { const e = byInternal(decodeURIComponent(m[1])); return e ? send(res, 200, ok(e)) : send(res, 404, { success: false, data: null, message: "Not found", errors: {} }); }
+    m = /^\/payroll\/employees\/([^/]+)\/compensation$/.exec(path || "");
+    if (req.method === "GET" && m) {
+      const e = byInternal(decodeURIComponent(m[1]));
+      if (!e) return send(res, 404, { success: false, data: null, message: "Not found", errors: {} });
+      const c = s.compensation.find((x) => x.employee_id === e.permanent_employee_id);
+      return send(res, 200, ok({ ...e, compensation: c ? { as_of: c.effective_date, compensation_version_id: c.version_id ?? null, basic_salary: Number(c.basic_salary), compensation_basis: c.rate_basis || "monthly", components: [], fixed_monthly_total: Number(c.basic_salary) } : null }));
     }
     if (req.method === "POST" && path === "/employees/verify") {
+      const errors = {};
+      if (!body.employee_code) errors.employee_code = "Required.";
+      else if (!body.verification_reference) errors.verification_reference = "Required.";
+      if (Object.keys(errors).length) return send(res, 400, { success: false, data: null, message: "Check the listed fields.", errors });
       const e = [...s.employees.values()].find((x) => x.employee_id.toLowerCase() === String(body.employee_id || "").toLowerCase());
-      if (!e) return send(res, 200, { match: false, eligible: false, mismatches: ["employee_id"], employee: null });
-      const dept = s.departments.find((d) => d.id === e.department_id) || {};
+      if (!e) return send(res, 404, { match: false });
+      const d = dept(e.department_id);
       const mismatches = [];
       const typed = norm(body.full_name);
       if (!typed.split(" ").includes(norm(e.first_name).split(" ")[0]) || !typed.includes(norm(e.last_name))) mismatches.push("full_name");
       if (norm(body.email) !== norm(e.email)) mismatches.push("email");
-      if (![norm(dept.name), norm(dept.code)].includes(norm(body.department)) && norm(body.department_code) !== norm(dept.code)) mismatches.push("department");
+      if (![norm(d.name), norm(d.code)].includes(norm(body.department)) && norm(body.department_code) !== norm(d.code)) mismatches.push("department");
       if (norm(body.position) !== norm(e.position?.title)) mismatches.push("position");
-      if (norm(body.verification_reference) !== norm(e.employee_code)) mismatches.push({ field: "verification_reference", hr_value: e.employee_code }); // a value JVzPay must never show
+      if (norm(body.employee_code) !== norm(e.employee_code)) mismatches.push("employee_code");
       const match = mismatches.length === 0;
-      return send(res, 200, { match, eligible: match && ["active", "on leave"].includes(norm(e.employment_status)), mismatches, employee: match ? { employee_id: e.employee_id } : null });
+      return send(res, 200, { match, eligible: match && ["active", "on leave"].includes(norm(e.employment_status)), mismatches, employee: match ? real(e) : null });
     }
-    return send(res, 404, { error: "not_found" });
+    return send(res, 404, { success: false, data: null, message: "Not found", errors: {} });
   });
   return { server, state: s };
 }

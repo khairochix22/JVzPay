@@ -208,15 +208,25 @@ approvals are done in ESS (§3.4).
    `POST {HR}/api/integration/v1/employees/verify` with `Authorization: Bearer <JVzPay's key from HR>` and
 
    ```json
-   { "employee_id": "JV-2026-00012", "full_name": "…", "email": "…", "department": "Customer Relation Management",
-     "department_code": "CRM", "position": "Agent", "verification_reference": "<unique code>" }
+   { "employee_id": "JV-2026-00004", "full_name": "…", "email": "…", "department": "CRM System", "position": "Agent",
+     "employee_code": "BAUTISTA11172026", "verification_reference": "ESS-REG-…" }
    ```
 
-   HR answers `{ "match": true|false, "eligible": true|false, "mismatches": [...], "employee": {...} }`. JVzPay registers
-   **only when `match` and `eligible` are both true**. When `match` is false it shows the new hire which fields did not
-   match (from `mismatches`: field names, or objects with a `field`), **never HR's values**. When HR cannot be reached
-   (no answer, error, not configured) the registration is **refused** — there is no offline registration. If the 15-minute
-   sync has not brought the new hire yet, JVzPay fetches `GET /employees/{employee_id}` right away.
+   All 7 fields are required strings (HR's `integration-api-HR.md`). `employee_id` is the Employee ID
+   (JV-<year hired>-<5-digit number>), `employee_code` the Employee Unique Code (LASTNAME + hire date MMDDYYYY), and
+   `verification_reference` JVzPay's own id for this registration attempt (it is in HR's audit log and in JVzPay's).
+
+   | HR's answer | What the new hire sees |
+   |---|---|
+   | `200 {"match": true, "eligible": true, "employee": {...}}` | The account is created at once. |
+   | `200 {"match": false, "mismatches": ["email", …]}` | Which fields do not match (never HR's values). |
+   | `200 {"match": true, "eligible": false}` | Not yet: HR must approve the onboarding, and the status must be Active or On Leave. |
+   | `404 {"match": false}` | The Employee ID does not match. |
+   | `400 {"errors": {...}}` | "Please check your details", naming the fields HR listed. |
+   | no answer, or `5xx` | "The HR system could not be reached" — the registration is refused (no offline registration). |
+
+   If the 15-minute sync has not brought the new hire yet, JVzPay takes the record from HR's list (by
+   `permanent_employee_id`) or, for a new hire HR does not list yet, from the verify answer's `employee`.
 4. **CRM and Inventory** sign their staff in with the department login below, and **activate** their own account on the
    first success.
 5. **Resigned or Terminated** in HR (seen by the next sync): the ESS account is deactivated and its sessions ended, and
@@ -276,8 +286,8 @@ Integration*, JVzPay reads (with `Authorization: Bearer HR_API_TOKEN`):
 | Call | Used for |
 |---|---|
 | `GET /departments?page=1&per_page=100` | Departments (`code`, `name`, active flag). |
-| `GET /employees?page=N&per_page=100` (every page) | The employee snapshot: name, email, department, position, status, hire date, unique code, supervisor. |
-| `GET /employees/{identifier}` | One new hire, right after HR confirmed their registration. |
+| `GET /employees?page=N&page_size=100` (every page) | The employee snapshot: name, email, department, position, status, hire date, unique code, supervisor. HR system accounts (no JV Employee ID) are skipped. |
+| (registration) | A new hire HR confirmed: taken from HR's list, or from the verify answer when HR does not list them yet. |
 | `GET /payroll/employees/{identifier}/compensation` (`HR_COMPENSATION_PATH`), for each employee read | Approved compensation (salary, rate basis, effective date, allowances). A `404` means HR has none for that employee yet. HR also has `GET /payroll/employees` and `GET /payroll/compensation-events`, which JVzPay does not read yet. |
 
 Everything is applied through the **same code** as the HR events of §2.1 (`DepartmentUpserted`, `EmployeeCreated` /
@@ -445,9 +455,9 @@ INVENTORY_API_PREFIX=/api/integration/v1
 INVENTORY_API_TOKEN=<token from Inventory>
 INVENTORY_DEPARTMENT_CODES=INVENTORY
 INVENTORY_POLL_ENABLED=true
-ACCOUNTING_DEPARTMENT_CODE=PAYROLL_ACCOUNTING
+ACCOUNTING_DEPARTMENT_CODE=ACCOUNTING
 POSITION_ROLES=Accounting Supervisor=accounting_supervisor,Accounting Staff=accounting_staff,Payroll Staff=payroll_staff
-DEPARTMENT_SUPERVISOR_TITLES=CRM=CRM Manager|Team Leader;INVENTORY=Inventory Manager|Inventory Supervisor;HR=HR Manager|HR Supervisor;PAYROLL_ACCOUNTING=Accounting Supervisor
+DEPARTMENT_SUPERVISOR_TITLES=CRM=CRM Manager|Team Leader;INVENTORY=Inventory Manager|Inventory Supervisor;HR=HR Manager|HR Supervisor;ACCOUNTING=Accounting Supervisor
 ```
 
 The department login accepts **Active and On Leave** employees of every department (team decision); Suspended,
@@ -455,29 +465,24 @@ Resigned and Terminated are refused with `403 not_allowed`.
 
 ## 7. Field names JVzPay accepts from HR and Inventory
 
-The exact JSON of HR's and Inventory's APIs was not available when JVzPay's side was written. Each field accepts the
-names below (first match wins); a nested name such as `position.title` means an object. To follow the final shape,
-only `services/hrMapping.js` and `services/inventoryMapping.js` change. **Pending (2026-11-16):** HR's
-`docs/integration-api-HR.md` and Inventory's `docs/api.md` will replace these lists with their real field names; the
-names that do not exist will then be removed.
+**HR (from HR's live API, read 2026-11-17; `services/hrMapping.js`).** The guessed alternatives were removed.
 
-**HR lists:** `items`, `data`, `employees`, `departments`, `results`, `records`, or a bare array; pages from
-`total_pages`, `meta.last_page` or `last_page` (`?page=` is sent). **One employee:** the object, or `{data}` / `{employee}`.
-
-| JVzPay field | HR names accepted |
+| What | HR's answer |
 |---|---|
-| Employee ID | `employee_id`, `employee_no`, `employee_number` (the JV number) |
-| Name | `first_name`/`given_name`, `middle_name`, `last_name`/`surname`/`family_name`, or `full_name`/`name` (split on the last word) |
-| Email | `email`, `onboarding_email`, `personal_email`, `work_email` |
-| Department | `department_code`, `department.code`, or `department_id` / `department.id` matched with `GET /departments` (`id`, `code`, `name`) |
-| Position | `position_title`, `position.title`, `position.name`, `position` (text), `job_title` |
-| Status | `employment_status`, `status`: Active, On Leave, Suspended/Inactive, Resigned, Terminated/Separated/Dismissed |
-| Hire date | `date_hired`, `hire_date`, `hired_at`, `date_joined`, `start_date` |
-| Separation date | `separation_date`, `date_separated`, `status_effective_date`, `effective_date` (else the day of the sync) |
-| Unique code | `employee_code`, `unique_code`, `employee_unique_code`, `verification_reference`, `verification_code` |
-| Supervisor | `supervisor_employee_id`, `immediate_supervisor_employee_id`, `team_leader_employee_id`, `supervisor.employee_id` (HR's JV number of the supervisor) |
-| Compensation | `basic_salary`/`monthly_salary`/`basic_pay`/`salary`/`amount`, `rate_basis`/`rate_type` (monthly, daily), `pay_frequency`, `effective_date`/`effective_from`/`approved_at`, `allowances[{code, amount}]`, `compensation_version_id`/`version_id`, `approval_reference`; from `GET /payroll/employees/{identifier}/compensation` (one object, `{data}`, or a list of versions) |
-| Verify answer | `match`, `eligible`, `mismatches` (field names, or objects with `field`; names such as `email`, `full_name`, `department`, `position`, `verification_reference`/`unique_code`, `employee_id`), `employee.employee_id` |
+| Lists | `{success, data: {items: [...], page, page_size, total, total_pages}}` (JVzPay sends `?page=&page_size=100`); departments `{success, data: [...]}` |
+| One record | `{success, data: {...}}`; `404` when unknown |
+| Department | `department_id`, `department_code`, `department_name` (codes: `HR`, `ACCOUNTING`, `CRM`, `INVENTORY`) |
+| Employee | `employee_id` (**HR's internal number**, used in HR's URL paths), `permanent_employee_id` (**the JV Employee ID**, JVzPay's key), `employee_code` (unique code), `first_name`, `last_name`, `full_name`, `email`, `phone_number`, `department` {`department_id`, `department_code`, `department_name`}, `position` (text), `employment_type`, `work_schedule`, `reporting_supervisor_id` (HR's internal number of the supervisor, turned into their JV number), `hire_date`, `status` (Active, On Leave, Suspended, Resigned, Terminated) |
+| System accounts | Records without `permanent_employee_id` (HR's own users) are skipped. |
+| Compensation | `GET /payroll/employees/{employee_id}/compensation` → `data.compensation` {`as_of`, `compensation_version_id`, `basic_salary`, `compensation_basis` (monthly/daily), `components`, `fixed_monthly_total`}. A salary JVzPay already pays (same amount and basis) is not recorded again; a changed one is recorded effective on `as_of`. |
+| Separation date | HR sends none: a Resigned/Terminated status is dated on the day the sync sees it. |
+| Verify | see §3.1 |
+
+Not yet seen in a live answer (to confirm with HR): the item shape of `components` (code + amount assumed), the
+`employment_type` values, and the `employee` object of a matching verify (the employee shape above assumed).
+
+**Inventory.** Still pending: Inventory's `docs/api.md` (its laptop could not be reached on 2026-11-17). Until then each
+field accepts the names below (first match wins); only `services/inventoryMapping.js` changes when the docs arrive.
 
 **Inventory outbox:** `events`, `items`, `data`, `outbox`, or a bare array; each item `event_id`/`id`/`uuid`,
 `event_type`/`type`/`name`, `data`/`payload`, `occurred_at`/`created_at`, optional `idempotency_key`, `correlation_id`.

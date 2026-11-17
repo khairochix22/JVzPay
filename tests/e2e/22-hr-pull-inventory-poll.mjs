@@ -29,8 +29,8 @@ for (const [title, min, mid, max] of [["Team Leader", 25000, 32000, 40000], ["Ma
 }
 let r = await sync();
 let s = await setting("integration.hr_sync");
-check("Sync now: every page of HR's employee list is read", r.status === 302 && s?.ok === true && s.employees.seen === 8, JSON.stringify(s));
-check("an incomplete HR record is skipped and reported; the others are saved", s.employees.failed === 1 && s.problems.some((p) => p.includes("JV-2026-00907") && p.includes("position_title")) && !(await selectOne("SELECT id FROM employees WHERE hr_employee_id = 'JV-2026-00907'")), JSON.stringify(s.problems));
+check("Sync now: every page of HR's employee list is read", r.status === 302 && s?.ok === true && s.employees.seen === 9 && s.employees.skipped === 1, JSON.stringify(s)); // 8 employees + HR's system account (no JV number: skipped)
+check("an incomplete HR record is skipped and reported; the others are saved", s.employees.failed === 1 && s.problems.some((p) => p.includes("JV-2026-00907") && p.includes("position")) && !(await selectOne("SELECT id FROM employees WHERE hr_employee_id = 'JV-2026-00907'")), JSON.stringify(s.problems));
 const liza = await selectOne("SELECT id FROM employees WHERE hr_employee_id = 'JV-2026-00905'");
 check("approved compensation from HR's payroll endpoint is recorded (verified, effective-dated)", !!(await selectOne("SELECT id FROM salary_history WHERE employee_id = ? AND new_amount = 30000.00 AND effective_date = '2026-11-16' AND verification_status = 'verified'", [liza.id])));
 check("a salary outside the position band is not recorded, and the reason is listed", s.problems.some((p) => p.includes("JV-2026-00906") && /band/.test(p)) && !(await selectOne("SELECT s.id FROM salary_history s JOIN employees e ON e.id = s.employee_id WHERE e.hr_employee_id = 'JV-2026-00906'")), JSON.stringify(s.problems));
@@ -57,10 +57,11 @@ check("an employee On Leave can still sign in to Inventory", r.status === 200 &&
 const andrea = new Client(base);
 await andrea.login("andrea.bautista@gmail.com", "Payday2026ok");
 check("Andrea has an ESS session before she resigns", (await andrea.get("/dashboard")).status === 200);
-await hrCtl("employees", { ...andreaHr, employment_status: "Resigned", separation_date: "2026-11-30" });
+await hrCtl("employees", { ...andreaHr, employment_status: "Resigned" });
+const syncDay = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" }); // HR sends no separation date: the day the sync sees it
 await sync();
 const andreaRow = await selectOne("SELECT e.id, e.employment_status, DATE_FORMAT(e.date_separated, '%Y-%m-%d') AS sep, u.id AS user_id, u.status AS account FROM employees e JOIN users u ON u.employee_id = e.id WHERE e.hr_employee_id = 'JV-2026-00901'");
-check("Resigned in HR: separation recorded, ESS account deactivated", andreaRow.employment_status === "resigned" && andreaRow.sep === "2026-11-30" && andreaRow.account === "inactive", JSON.stringify(andreaRow));
+check("Resigned in HR: separation recorded, ESS account deactivated", andreaRow.employment_status === "resigned" && andreaRow.sep === syncDay && andreaRow.account === "inactive", JSON.stringify(andreaRow));
 check("her sessions are ended and the removal is audited", !(await selectOne("SELECT 1 AS x FROM user_sessions WHERE user_id = ?", [andreaRow.user_id])) && !!(await selectOne("SELECT id FROM audit_logs WHERE action = 'ess_access_removed' AND record_id = ?", [String(andreaRow.user_id)])));
 r = await andrea.get("/dashboard");
 check("her open ESS session no longer works", r.status === 302 && r.loc === "/login", `${r.status} ${r.loc}`);

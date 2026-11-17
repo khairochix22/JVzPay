@@ -4,29 +4,23 @@
 // EmployeeCreated/Updated, EmployeeStatusChanged, EmployeeCompensationApproved), so both paths follow one set of rules.
 // Resigned or Terminated in HR deactivates the ESS account (integrationService.js, disableSeparatedAccess).
 //
-// HR API (HR_API_URL + HR_API_PREFIX, Authorization: Bearer HR_API_TOKEN):
-//   GET /departments?page=   GET /employees?page=   GET /employees/{identifier}   GET /payroll/employees/{identifier}/compensation
+// HR API (HR_API_URL + HR_API_PREFIX, Authorization: Bearer HR_API_TOKEN), shapes in hrMapping.js:
+//   GET /departments    GET /employees?page=&page_size=    GET /payroll/employees/{employee_id}/compensation
+// HR's {employee_id} in those paths is HR's INTERNAL number; JVzPay keys employees by the JV Employee ID
+// (permanent_employee_id). HR accounts without a JV Employee ID ("System account") are skipped.
 import { select, selectOne, exec, tx } from "../lib/db.js";
 import { audit } from "../lib/audit.js";
 import { clearSettingsCache, getSetting } from "../lib/settings.js";
 import { callApp, targetConfig, hrHandlers, EventError } from "./integrationService.js";
-import { listOf, totalPagesOf, recordOf, mapDepartment, mapEmployee, mapCompensation, separationDate, HrMappingError } from "./hrMapping.js";
+import { listOf, totalPagesOf, recordOf, mapDepartment, mapEmployee, mapCompensation, separationDate, supervisorMap, isEmployeeRecord, HrMappingError } from "./hrMapping.js";
 
 export const SYNC_EVERY_MS = 15 * 60 * 1000;
 const SETTING = "integration.hr_sync";
 const SYSTEM = { id: null, full_name: "HR sync", role_code: "system" };
 const manilaToday = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
-// HR: GET /payroll/employees/{identifier}/compensation, one employee per call (HR_COMPENSATION_PATH may change it)
+// HR: GET /payroll/employees/{identifier}/compensation, with HR's internal employee number (HR_COMPENSATION_PATH may change it)
 const COMPENSATION_TEMPLATE = () => `/${String(process.env.HR_COMPENSATION_PATH || "/payroll/employees/{identifier}/compensation").replace(/^\/+/, "")}`;
-const compensationPath = (id) => COMPENSATION_TEMPLATE().replace("{identifier}", encodeURIComponent(id));
-
-/** One employee's approved compensation from HR (none when HR answers 404). A list answer is read as versions. */
-async function hrCompensation(employeeId) {
-  const body = await hrGet(compensationPath(employeeId));
-  if (body === null) return [];
-  const items = Array.isArray(body) || listOf(body).length ? listOf(body) : [recordOf(body)];
-  return items.map((item) => mapCompensation(item, employeeId)).filter(Boolean);
-}
+const compensationPath = (hrInternalId) => COMPENSATION_TEMPLATE().replace("{identifier}", encodeURIComponent(hrInternalId));
 
 export class HrUnavailableError extends Error {}
 
@@ -44,12 +38,12 @@ async function hrGet(path) {
   try { return await res.json(); } catch { throw new HrUnavailableError("HR's answer was not JSON"); }
 }
 
-/** Every item of a paged HR list. */
+/** Every item of a paged HR list (data.items, data.total_pages). */
 async function hrList(path) {
   const out = [];
   for (let page = 1, pages = 1; page <= pages; page++) {
     const sep = path.includes("?") ? "&" : "?";
-    const body = await hrGet(`${path}${sep}page=${page}&per_page=100`);
+    const body = await hrGet(`${path}${sep}page=${page}&page_size=100`);
     if (body === null) return null;
     const items = listOf(body);
     out.push(...items);
@@ -59,10 +53,17 @@ async function hrList(path) {
   return out;
 }
 
+/** One employee's approved compensation (data.compensation), by HR's internal number; [] when HR has none. */
+async function hrCompensation(hrInternalId, jvId) {
+  const body = await hrGet(compensationPath(hrInternalId));
+  const c = mapCompensation(recordOf(body)?.compensation, jvId);
+  return c ? [c] : [];
+}
+
 const eventFor = (kind) => ({ event_id: `hr-sync:${kind}:${Date.now()}` });
 
 /** Apply one HR employee record (already mapped) through the event handlers. Returns what happened. */
-async function applyEmployee(data, rawItem) {
+async function applyEmployee(data) {
   return tx(async (trx) => {
     const cur = await selectOne("SELECT id, employment_status FROM employees WHERE hr_employee_id = ? AND deleted_at IS NULL", [data.employee_id], trx);
     if (!cur) {
@@ -75,7 +76,7 @@ async function applyEmployee(data, rawItem) {
     await hrHandlers.employeeUpsert({ ...data, employment_status: cur.employment_status }, eventFor("employee"), trx);
     if (changed) {
       const leaving = ["resigned", "terminated"].includes(data.employment_status);
-      const when = separationDate(rawItem, manilaToday());
+      const when = separationDate(data, manilaToday());
       await hrHandlers.employeeStatus({ employee_id: data.employee_id, employment_status: data.employment_status, effective_date: when, ...(leaving ? { separation_date: when } : {}) }, eventFor("status"), trx);
       return leaving ? "separated" : "status_changed";
     }
@@ -83,14 +84,16 @@ async function applyEmployee(data, rawItem) {
   });
 }
 
-/** Apply one approved compensation unless JVzPay already has that exact version. */
+/**
+ * Apply one approved compensation unless it is what JVzPay already pays: HR's as_of moves with time, so the version is
+ * compared by amount and basis (a changed salary is recorded, effective on HR's as_of date).
+ */
 async function applyCompensation(c) {
   const emp = await selectOne("SELECT id FROM employees WHERE hr_employee_id = ? AND deleted_at IS NULL", [c.employee_id]);
   if (!emp) return "unknown_employee";
-  const same = await selectOne(
-    "SELECT id FROM salary_history WHERE employee_id = ? AND effective_date = ? AND new_amount = ? AND rate_basis = ? AND verification_status <> 'rejected' LIMIT 1",
-    [emp.id, c.effective_date, Number(c.basic_salary).toFixed(2), c.rate_basis]);
-  if (same) return "unchanged";
+  const latest = await selectOne(
+    "SELECT new_amount, rate_basis FROM salary_history WHERE employee_id = ? AND verification_status <> 'rejected' ORDER BY effective_date DESC, id DESC LIMIT 1", [emp.id]);
+  if (latest && Number(latest.new_amount).toFixed(2) === Number(c.basic_salary).toFixed(2) && latest.rate_basis === c.rate_basis) return "unchanged";
   await tx((trx) => hrHandlers.compensation(c, eventFor("compensation"), trx));
   return "recorded";
 }
@@ -109,7 +112,7 @@ async function runSync(req, trigger) {
   const s = {
     at: startedAt.toISOString(), trigger, ok: false, error: null,
     departments: { seen: 0, saved: 0, failed: 0 },
-    employees: { seen: 0, created: 0, updated: 0, status_changed: 0, separated: 0, failed: 0 },
+    employees: { seen: 0, created: 0, updated: 0, status_changed: 0, separated: 0, skipped: 0, failed: 0 },
     compensation: { seen: 0, recorded: 0, unchanged: 0, failed: 0, endpoint: COMPENSATION_TEMPLATE() },
     problems: [],
   };
@@ -117,45 +120,43 @@ async function runSync(req, trigger) {
   try {
     if (!targetConfig("hr").connected) throw new HrUnavailableError("HR_API_URL is not set");
 
-    const depts = (await hrList("/departments")) || [];
-    const byId = new Map();
-    for (const item of depts) {
+    for (const item of (await hrList("/departments")) || []) {
       s.departments.seen++;
       try {
-        const d = mapDepartment(item);
-        if (item.id !== undefined) byId.set(String(item.id), { code: d.department_code, name: d.department_name });
-        await tx((trx) => hrHandlers.department(d, eventFor("department"), trx));
+        await tx((trx) => hrHandlers.department(mapDepartment(item), eventFor("department"), trx));
         s.departments.saved++;
       } catch (e) { s.departments.failed++; problem("department", e.message); }
     }
 
     const people = await hrList("/employees");
     if (people === null) throw new HrUnavailableError("HR has no /employees endpoint at this address");
+    const supervisors = supervisorMap(people);
     const synced = [];
     for (const item of people) {
       s.employees.seen++;
+      if (!isEmployeeRecord(item)) { s.employees.skipped++; continue; } // HR's system accounts have no JV Employee ID
       try {
-        const data = mapEmployee(item, byId);
-        s.employees[await applyEmployee(data, item)]++;
-        synced.push(data.employee_id);
+        const data = mapEmployee(item, supervisors);
+        s.employees[await applyEmployee(data)]++;
+        synced.push({ hrId: item.employee_id, jv: data.employee_id });
       } catch (e) {
         s.employees.failed++;
-        problem(`employee ${item?.employee_id ?? item?.employee_no ?? "?"}`, e instanceof HrMappingError || e instanceof EventError ? e.message : `could not be saved (${e.message})`);
+        problem(`employee ${item?.permanent_employee_id ?? item?.employee_id ?? "?"}`, e instanceof HrMappingError || e instanceof EventError ? e.message : `could not be saved (${e.message})`);
       }
     }
 
-    const comps = [];
-    for (const id of synced) {
-      try { comps.push(...(await hrCompensation(id))); }
-      catch (e) { if (e instanceof HrUnavailableError) throw e; s.compensation.failed++; problem(`compensation ${id}`, e.message); }
-    }
-    for (const c of comps) {
-      s.compensation.seen++;
-      try {
-        const r = await applyCompensation(c);
-        if (r === "unknown_employee") { s.compensation.failed++; problem(`compensation ${c.employee_id}`, "employee not in HR's employee list"); }
-        else s.compensation[r]++;
-      } catch (e) { s.compensation.failed++; problem(`compensation ${c.employee_id}`, e.message); }
+    for (const { hrId, jv } of synced) {
+      let comps;
+      try { comps = await hrCompensation(hrId, jv); }
+      catch (e) { if (e instanceof HrUnavailableError) throw e; s.compensation.failed++; problem(`compensation ${jv}`, e.message); continue; }
+      for (const c of comps) {
+        s.compensation.seen++;
+        try {
+          const r = await applyCompensation(c);
+          if (r === "unknown_employee") { s.compensation.failed++; problem(`compensation ${jv}`, "employee not in JVzPay"); }
+          else s.compensation[r]++;
+        } catch (e) { s.compensation.failed++; problem(`compensation ${jv}`, e.message); }
+      }
     }
     s.ok = true;
   } catch (e) {
@@ -184,23 +185,20 @@ async function saveSummary(s) {
 export const lastSync = () => getSetting(SETTING, null);
 
 /**
- * Fetch one employee from HR (GET /employees/{identifier}) and apply it, e.g. right after a successful registration
- * check when the 15-minute sync has not brought the new hire yet. Returns JVzPay's employee row, or null.
+ * Bring one employee from HR right after HR confirmed their registration, when the 15-minute sync has not brought them
+ * yet. HR's list is searched by the JV Employee ID; a new hire HR does not list yet is taken from the verify answer's
+ * `employee` (pass it as `fromVerify`). Returns JVzPay's employee row, or null when HR has no usable record.
  */
-export async function syncOneEmployee(identifier) {
-  const body = await hrGet(`/employees/${encodeURIComponent(identifier)}`);
-  if (body === null) return null;
-  const item = recordOf(body);
-  // HR may name only the department's id: read HR's departments to know its code (as the full sync does)
-  const byId = new Map();
-  if (!item.department_code && !item.department?.code) {
-    for (const d of (await hrList("/departments")) || []) {
-      try { const m = mapDepartment(d); if (d.id !== undefined) byId.set(String(d.id), { code: m.department_code, name: m.department_name }); } catch { /* skip */ }
-    }
+export async function syncOneEmployee(jvId, fromVerify = null) {
+  const people = (await hrList("/employees")) || [];
+  let item = people.find((p) => String(p.permanent_employee_id || "").toUpperCase() === String(jvId).toUpperCase());
+  if (!item && fromVerify && isEmployeeRecord(fromVerify)) item = fromVerify;
+  if (!item) return null;
+  const data = mapEmployee(item, supervisorMap(people));
+  await applyEmployee(data);
+  if (item.employee_id !== undefined) {
+    try { for (const c of await hrCompensation(item.employee_id, data.employee_id)) await applyCompensation(c); } catch { /* the next full sync reports it */ }
   }
-  const data = mapEmployee(item, byId);
-  await applyEmployee(data, item);
-  try { for (const c of await hrCompensation(data.employee_id)) await applyCompensation(c); } catch { /* the next full sync reports it */ }
   return selectOne("SELECT * FROM employees WHERE hr_employee_id = ? AND deleted_at IS NULL", [data.employee_id]);
 }
 
