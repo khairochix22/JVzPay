@@ -365,6 +365,7 @@ or `Authorization: Bearer <token>`); each group answers only its own application
 | `GET /api/v1/events/{event_id}` | Status of an event **you** sent: `status` (`processed`, `failed`, `received`), `error`, `attempts`, `result_ref`, `received_at`, `processed_at`. |
 | `GET /api/v1/feed?after={sequence}&limit=50&event_type=` | Events JVzPay has **for you** (the same ones it pushes to your `/api/v1/events`), oldest first, each with a `sequence`. Keep `next_after` and pass it as `after` next time; repeat while `has_more` is true. Use it if your app cannot receive pushes yet. De-duplicate by `event_id`. |
 | `POST /api/v1/auth/login` | Department sign-in (§3.1). |
+| `POST /api/integration/v1/test/echo` | Connection test for a signed request **with a body**: answers `200 {status:"ok", app, source, signed, method, path, received_at, body_sha256, echo}` with the body exactly as received (wrong signature: `401`). Stores nothing. Used by CRM's `check-connections`. |
 
 ### 5.2 HR (HR token only)
 

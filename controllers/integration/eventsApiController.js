@@ -6,6 +6,7 @@
 // processing gave (the result is in GET /events/{event_id} and on JVzPay's Integration page), 200 {"status":"duplicate"},
 // 400 {"error":"invalid_json"|"invalid_envelope","details":[…]}, 401 {"error":"<code>"}.
 // Answers to a BEARER caller are unchanged: 202 processed, 200 duplicate, 400 invalid, 422 failed.
+import crypto from "node:crypto";
 import { authenticateRequest, receiveEvent } from "../../services/integrationService.js";
 import { jsonApi } from "../../middleware/apiClient.js";
 import { inboundEventStatus, outboundFeed } from "../../services/integrationQueryService.js";
@@ -42,6 +43,19 @@ export const health = async (req, res) => {
   const auth = await authenticateRequest(req);
   if (auth.error) return res.status(401).json(authErrorBody(auth));
   res.json({ status: "ok", app: "johnvivz_accounting", application: "johnvivz_accounting", source: auth.client.source, as_of: new Date().toISOString(), time: new Date().toISOString() });
+};
+
+// POST /api/integration/v1/test/echo — connection test for a signed request WITH a body (CRM's check-connections):
+// answers 200 with what was received, so the caller knows the body was signed and read exactly as sent. Stores nothing.
+export const echo = async (req, res) => {
+  const auth = await authenticateRequest(req);
+  if (auth.error) return res.status(401).json(authErrorBody(auth));
+  const raw = req.rawBody || Buffer.from("");
+  res.json({
+    status: "ok", app: "johnvivz_accounting", source: auth.client.source, signed: auth.signed,
+    method: req.method, path: req.originalUrl, received_at: new Date().toISOString(),
+    body_sha256: crypto.createHash("sha256").update(raw).digest("hex"), echo: req.body ?? null,
+  });
 };
 
 // POST /api/integration/v1/auth/login — CRM (signed) or Inventory (bearer token) checks an employee's email and ESS

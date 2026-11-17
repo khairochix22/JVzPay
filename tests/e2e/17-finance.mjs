@@ -136,6 +136,11 @@ r = await signed("GET", "/api/integration/v1/health", null, { secret: "wrong-sec
 check("contract: a wrong secret is 401 invalid_signature", r.status === 401 && r.body.error === "invalid_signature", JSON.stringify(r.body));
 r = await signed("GET", "/api/integration/v1/health", null, { timestamp: manilaTimestamp(new Date(Date.now() - 10 * 60 * 1000)) });
 check("contract: a 10-minute-old request is 401 stale_timestamp", r.status === 401 && r.body.error === "stale_timestamp", JSON.stringify(r.body));
+const echoBody = { ping: "johnvivz", amount: "285.00", items: [1, 1.5] };
+r = await signed("POST", "/api/integration/v1/test/echo", echoBody);
+check("contract: a signed POST with a body is echoed back exactly (CRM's connection check)", r.status === 200 && r.body.status === "ok" && r.body.signed === true && JSON.stringify(r.body.echo) === JSON.stringify(echoBody)
+  && r.body.body_sha256 === crypto.createHash("sha256").update(JSON.stringify(echoBody)).digest("hex"), JSON.stringify(r.body));
+check("contract: the echo refuses a wrong signature (401)", (await signed("POST", "/api/integration/v1/test/echo", echoBody, { secret: "wrong-secret" })).status === 401);
 r = await fetch(`${base}/api/integration/v1/health`, { headers: { authorization: `Bearer ${crmToken}` } });
 check("contract: the bearer token still works on the contract path", r.status === 200);
 

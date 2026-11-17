@@ -15,6 +15,7 @@ const r = express.Router();
 r.use(rateLimit({ windowMs: 60 * 1000, limit: 600, standardHeaders: "draft-7", legacyHeaders: false, message: { status: "rate_limited", error: "Too many requests; retry in a minute." } }));
 r.get("/health", events.health);
 r.post("/events", events.receive);
+r.post("/test/echo", events.echo); // connection test for signed requests with a body (no data stored)
 // stricter: these are password checks
 r.post("/auth/login", rateLimit({ windowMs: 15 * 60 * 1000, limit: 60, standardHeaders: "draft-7", legacyHeaders: false, message: { error: "rate_limited", message: "Too many sign-in attempts; try again later." } }), events.departmentLogin);
 
