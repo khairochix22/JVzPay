@@ -12,6 +12,23 @@ if (fs.existsSync(envPath)) {
   process.exit(0);
 }
 
+// npm run setup -- --production : a server .env from .env.production.example, with a fresh SESSION_SECRET and
+// DATA_ENCRYPTION_KEY. Use it ONCE, for a brand-new database. A server that takes over an existing database must get
+// that database's DATA_ENCRYPTION_KEY from the key backup instead (docs/DEPLOY-AWS.md §9).
+if (process.argv.includes("--production")) {
+  const template = path.join(root, ".env.production.example");
+  let text = fs.readFileSync(template, "utf8");
+  const fill = (key, value) => { text = text.replace(new RegExp(`^${key}=$`, "m"), `${key}=${value}`); };
+  fill("SESSION_SECRET", crypto.randomBytes(48).toString("hex"));
+  fill("DATA_ENCRYPTION_KEY", crypto.randomBytes(32).toString("hex"));
+  fs.writeFileSync(envPath, text, { mode: 0o600 });
+  console.log("✅ .env created from .env.production.example with a new SESSION_SECRET and DATA_ENCRYPTION_KEY.");
+  console.log("   1. Back up DATA_ENCRYPTION_KEY NOW, somewhere other than this server and its database backups.");
+  console.log("   2. Fill in DB_PASSWORD and every empty value (the comments say who provides each one).");
+  console.log("   The app refuses to start until every required value is filled in.");
+  process.exit(0);
+}
+
 // base64url + fixed suffix: letters, digits, "-" and "_" only. Never use "#": dotenv treats it as a comment.
 const adminPassword = crypto.randomBytes(9).toString("base64url") + "7a";
 const lines = [

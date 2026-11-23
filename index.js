@@ -33,10 +33,14 @@ import os from "os";
 import http from "http";
 import https from "https";
 import hbs from "hbs";
-import { fileURLToPath, pathToFileURL } from "url";
+import { fileURLToPath } from "url";
 import { dirname } from "path";
 
 import { env } from "./config/env.js";
+import { checkConfig } from "./config/productionCheck.js";
+import { checkEncryptionKey } from "./lib/keyCheck.js";
+import * as healthCheck from "./controllers/system/healthController.js";
+import { sequelize } from "./lib/db.js";
 import router from "./routes/index.js";
 import apiRouter from "./routes/api.js";
 import { registerHelpers } from "./lib/hbsHelpers.js";
@@ -50,11 +54,27 @@ import { startScheduler } from "./lib/scheduler.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+// Refuse to start with settings that are missing, weak or contradictory (config/productionCheck.js). In production
+// that covers every required value; on a laptop only what would break signing in.
+{
+  const { errors, warnings } = checkConfig(process.env);
+  for (const w of warnings) console.warn(`⚠️  ${w}`);
+  if (errors.length) {
+    console.error(`❌ JVzPay will not start (NODE_ENV=${env.nodeEnv}). Fix these settings in .env, then restart:\n${errors.map((e) => `   - ${e}`).join("\n")}\n   Every setting is explained in .env.production.example and docs/DEPLOY-AWS.md.`);
+    process.exit(1);
+  }
+}
+
 const app = express();
 const PORT = env.port;
 
 app.disable("x-powered-by");
-if (env.isProd) app.set("trust proxy", 1); // behind nginx/Apache: needed for secure cookies and real client IPs
+// Behind Nginx (TRUST_PROXY=1): req.ip, req.secure and req.protocol come from the X-Forwarded-For / X-Forwarded-Proto
+// headers Nginx sets, so sign-in limits, audit logs and secure cookies see the real visitor. Off on a laptop.
+if (env.trustProxy !== false) app.set("trust proxy", env.trustProxy);
+
+// Public liveness check for monitoring: no database, no session, no data (GET /healthz also checks the database).
+app.get("/health", healthCheck.alive);
 
 // Security headers. Strict CSP: all scripts are same-origin files (no inline scripts, no CDN).
 app.use(
@@ -70,7 +90,7 @@ app.use(
         "form-action": ["'self'"],
         "frame-ancestors": ["'none'"],
         "object-src": ["'none'"],
-        "upgrade-insecure-requests": env.isProd ? [] : null,
+        "upgrade-insecure-requests": env.cookieSecure || env.https.enabled ? [] : null,
       },
     },
     crossOriginEmbedderPolicy: false,
@@ -98,7 +118,7 @@ app.use(
     cookie: {
       httpOnly: true,
       sameSite: "lax",
-      secure: env.isProd || env.https.enabled,
+      secure: env.cookieSecure || env.https.enabled, // COOKIE_SECURE=true on the server once https:// works
       maxAge: env.sessionIdleMinutes * 60 * 1000,
     },
   })
@@ -186,15 +206,15 @@ export default app;
 
 // Start the HTTP server; resolves once the server is listening.
 // Exported so the Electron main process can control startup itself.
-export const startServer = (port = PORT) => {
+export const startServer = (port = PORT, host = env.host) => {
   return new Promise((resolve, reject) => {
     const tls = env.https.enabled ? { cert: fs.readFileSync(env.https.certFile), key: fs.readFileSync(env.https.keyFile) } : null;
     const server = tls ? https.createServer(tls, app) : http.createServer(app);
-    server.listen(port, () => {
+    server.listen(port, host, () => {
       const scheme = tls ? "https" : "http";
-      console.log(`🔥 XianFire running at ${scheme}://localhost:${port}`);
-      // it listens on every address: show the ones the other JOHNVIVZ laptops on the same Wi-Fi can use
-      const lan = Object.values(os.networkInterfaces()).flat().filter((a) => a && a.family === "IPv4" && !a.internal).map((a) => `${scheme}://${a.address}:${port}`);
+      console.log(`🔥 XianFire running at ${scheme}://${host || "localhost"}:${port}${env.publicBaseUrl ? `  (public address: ${env.publicBaseUrl})` : ""}`);
+      // listening on every address (a laptop): show the ones the other JOHNVIVZ laptops on the same Wi-Fi can use
+      const lan = host && !["0.0.0.0", "::"].includes(host) ? [] : Object.values(os.networkInterfaces()).flat().filter((a) => a && a.family === "IPv4" && !a.internal).map((a) => `${scheme}://${a.address}:${port}`);
       if (lan.length) console.log(`   On this network: ${lan.join("  ")}  (integration API: <address>/api/v1 or /api/integration/v1)`);
       if (tls && env.https.redirectPort) {
         http.createServer((req, res) => {
@@ -209,11 +229,36 @@ export const startServer = (port = PORT) => {
   });
 };
 
-// Auto-start only when executed directly (node index.js).
-// When imported by electron/main.js, Electron manages the server lifecycle.
-const isDirectRun =
-  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
-
-if (isDirectRun && !process.env.XIAN_ELECTRON) {
-  startServer();
+// Start whenever this file is loaded. Deliberately NO "main module" check (require.main === module or
+// import.meta.url === process.argv[1]): under PM2 the main module is PM2's own ProcessContainerFork.js, so such a check
+// is false, the app exits with code 0 and PM2 restarts it forever. Nothing imports index.js (the tests run
+// `node index.js`). An Electron wrapper sets XIAN_ELECTRON to start the server itself.
+if (!process.env.XIAN_ELECTRON) {
+  try {
+    // the key must open the bank and government ID numbers already in the database (lib/keyCheck.js)
+    const key = await checkEncryptionKey();
+    if (key.problem) {
+      if (env.isProd) { console.error(`❌ JVzPay will not start: ${key.problem}`); process.exit(1); }
+      console.warn(`⚠️  ${key.problem}`);
+    }
+  } catch (e) {
+    console.warn(`⚠️  Could not check DATA_ENCRYPTION_KEY against the database (${e.message}). Is MySQL running?`);
+  }
+  const server = await startServer().catch((e) => {
+    console.error(`❌ JVzPay could not listen on ${env.host || "every address"}:${PORT}: ${e.message}`);
+    process.exit(1);
+  });
+  // PM2 (pm2 restart / reload / stop) and Ctrl+C: finish open requests, close the MySQL pool, then exit
+  let stopping = false;
+  const shutdown = (signal) => {
+    if (stopping) return;
+    stopping = true;
+    console.log(`${signal} received: stopping JVzPay…`);
+    const force = setTimeout(() => process.exit(0), 8000);
+    force.unref();
+    server.close(() => sequelize.close().catch(() => {}).finally(() => process.exit(0)));
+    server.closeIdleConnections?.();
+  };
+  process.once("SIGINT", () => shutdown("SIGINT"));
+  process.once("SIGTERM", () => shutdown("SIGTERM"));
 }

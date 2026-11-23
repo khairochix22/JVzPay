@@ -1,7 +1,7 @@
 {{> app_head}}
 {{> app_shell_open}}
 <div class="page-header">
-  <div><h1>Employee Registrations</h1><p>Accounts created by new hires at <code>/register/employee</code>. Each one was matched against HR's record and opens only the employee's own department.</p></div>
+  <div><h1>Employee Registrations</h1><p>Accounts created by new hires at <code>{{registrationUrl}}</code>. Each one was matched against HR's record and opens only the employee's own department.</p></div>
 </div>
 <section class="card">
   <div class="card__body card__body--flush">
@@ -15,7 +15,7 @@
       <td data-label="Registered" class="nowrap">{{datetime created_at}}</td>
     </tr>{{/each}}
     </tbody></table></div>
-    {{else}}<div class="empty"><svg class="ic"><use href="#i-user-plus"/></svg><strong>No registrations yet</strong>New hires register at /register/employee after HR has sent their record.</div>{{/if}}
+    {{else}}<div class="empty"><svg class="ic"><use href="#i-user-plus"/></svg><strong>No registrations yet</strong>New hires register at {{registrationUrl}} after HR has sent their record.</div>{{/if}}
   </div>
 </section>
 {{> app_shell_close}}

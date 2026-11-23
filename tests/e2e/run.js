@@ -28,7 +28,9 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "jvzpay-e2e-"));
 // fake HR (pull-only, verify) and Inventory (outbox) applications for the whole run (fakeApps.mjs)
 const fakeTokens = { hrToken: crypto.randomBytes(24).toString("hex"), inventoryToken: crypto.randomBytes(24).toString("hex") };
 const fakes = await spawnFakeApps(fakeTokens);
-const childEnv = { ...process.env, DISABLE_SCHEDULER: "1", PORT: port, DB_NAME: env.db.name, UPLOAD_DIR: path.join(tmp, "uploads"), BACKUP_DIR: path.join(tmp, "backups"),
+const childEnv = { ...process.env, NODE_ENV: "development", DISABLE_SCHEDULER: "1",
+  // laptop defaults (stage 23 restarts the server as it runs behind Nginx); never taken from the developer's .env
+  HOST: "", PUBLIC_BASE_URL: "", TRUST_PROXY: "false", COOKIE_SECURE: "false", PENDING_INTEGRATIONS: "", PORT: port, DB_NAME: env.db.name, UPLOAD_DIR: path.join(tmp, "uploads"), BACKUP_DIR: path.join(tmp, "backups"),
   // a throwaway secret for the signed-request (CRM contract) checks in stages 15 and 17
   CRM_INBOUND_SECRET: crypto.randomBytes(32).toString("hex"),
   HR_API_URL: fakes.hrUrl, HR_API_PREFIX: "/api/integration/v1", HR_API_TOKEN: fakeTokens.hrToken, HR_API_SECRET: "", HR_EVENTS_ENABLED: "",
@@ -36,7 +38,9 @@ const childEnv = { ...process.env, DISABLE_SCHEDULER: "1", PORT: port, DB_NAME: 
   CRM_API_URL: "", CRM_DEPARTMENT_CODES: "", INVENTORY_DEPARTMENT_CODES: "", HR_COMPENSATION_PATH: "", ACCOUNTING_DEPARTMENT_CODE: "", POSITION_ROLES: "", DEPARTMENT_SUPERVISOR_TITLES: "" };
 const adminEmail = (process.env.ADMIN_EMAIL || "").toLowerCase(), adminPass = process.env.ADMIN_PASSWORD;
 
-let totalPassed = 0, totalChecks = 0, failed = false, server;
+let totalPassed = 0, totalChecks = 0, failed = false, server, currentBase = base;
+// how the app runs on the AWS server behind Nginx (docs/DEPLOY-AWS.md): stage 23
+const BEHIND_NGINX = { TRUST_PROXY: "1", COOKIE_SECURE: "true", PUBLIC_BASE_URL: "https://johnvivz-pay.duckdns.org", HOST: "127.0.0.1" };
 
 function node(args) {
   const r = spawnSync(process.execPath, args, { cwd: project, env: childEnv, encoding: "utf8", maxBuffer: 1 << 26, timeout: 900000 });
@@ -51,13 +55,14 @@ function freshDatabase() {
   }
 }
 
-async function startServer() {
+async function startServer(extraEnv = {}, url = base) {
   let output = "";
-  server = spawn(process.execPath, ["index.js"], { cwd: project, env: childEnv, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+  currentBase = url;
+  server = spawn(process.execPath, ["index.js"], { cwd: project, env: { ...childEnv, ...extraEnv }, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
   server.stdout.on("data", (d) => { output += d; });
   server.stderr.on("data", (d) => { output += d; });
   for (let i = 0; i < 240; i++) {
-    try { if ((await fetch(`${base}/login`)).ok) return; } catch { /* not listening yet */ }
+    try { if ((await fetch(`${url}/login`)).ok) return; } catch { /* not listening yet */ }
     await new Promise((r) => setTimeout(r, 250));
   }
   console.error(`The test server did not start.\n${output.slice(-1500)}`); process.exit(1);
@@ -73,7 +78,7 @@ function unlockAccounts() {
 }
 
 function runScript(file, ...args) {
-  const r = node([path.join(here, file), base, ...args]);
+  const r = node([path.join(here, file), currentBase, ...args]);
   const lines = r.out.split("\n").filter((l) => !/deprecat|trace-deprecation|Assertion failed: !\(handle/i.test(l));
   for (const l of lines) if (/^FAIL|^PROBLEM|Error:|^\s+at file|backup failed/.test(l)) console.log(`  ${l.slice(0, 500)}`);
   const passed = /(\d+)\/(\d+) passed/.exec(r.out), problems = /(\d+) problem\(s\)/.exec(r.out);
@@ -125,6 +130,12 @@ if (!process.argv.includes("--browser-only")) {
     runScript(script);
     await stopServer();
   }
+  // as on the AWS server: behind Nginx, HTTPS at Nginx, listening on 127.0.0.1 only
+  await startServer(BEHIND_NGINX, `http://127.0.0.1:${port}`);
+  unlockAccounts();
+  runScript("23-behind-proxy.mjs");
+  await stopServer();
+  currentBase = base;
 }
 
 if (!process.argv.includes("--no-browser")) {

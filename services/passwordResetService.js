@@ -8,6 +8,7 @@ import { audit } from "../lib/audit.js";
 import { checkPassword } from "../lib/validate.js";
 import { badRequest, notFound } from "../lib/errors.js";
 import { env } from "../config/env.js";
+import { publicUrl } from "../lib/publicUrl.js";
 
 const sha256 = (s) => crypto.createHash("sha256").update(String(s)).digest("hex");
 
@@ -24,7 +25,7 @@ export async function createResetLink(req, userId) {
     await audit(req, { action: "password_reset_link_created", module: "users", recordType: "user", recordId: user.id, remarks: `Expires in ${env.resetLinkMinutes} minutes; usable once.` }, trx);
     return (await selectOne("SELECT expires_at FROM password_resets WHERE token_hash = ?", [sha256(token)], trx)).expires_at;
   });
-  return { url: `${req.protocol}://${req.get("host")}/reset-password/${token}`, expiresAt, email: user.email };
+  return { url: publicUrl(req, `/reset-password/${token}`), expiresAt, email: user.email };
 }
 
 /** The reset row for a token, or null when it is unknown, used, expired or the account is no longer active. */

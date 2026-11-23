@@ -1,5 +1,12 @@
-// GET /healthz: for an uptime monitor. Public, and reveals nothing beyond "up" and whether the database answers.
+// Health checks for monitoring. Both are public and reveal no data.
+//   GET /health   the app process answers (no database call): for an uptime monitor, PM2 or a load balancer.
+//   GET /healthz  also asks the database "SELECT 1": tells "app up, MySQL down" apart from "all fine".
+// The signed /api/integration/v1/health (controllers/integration/eventsApiController.js) is for the other JOHNVIVZ apps.
 import { scalar } from "../../lib/db.js";
+
+export const alive = (req, res) => {
+  res.set("Cache-Control", "no-store").json({ status: "ok" });
+};
 
 export const health = async (req, res) => {
   const started = Date.now();

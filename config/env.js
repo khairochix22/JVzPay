@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { parseBool, parseTrustProxy } from "./productionCheck.js";
 
 const required = (name) => {
   const v = process.env[name];
@@ -10,6 +11,18 @@ export const env = {
   nodeEnv: process.env.NODE_ENV || "development",
   isProd: process.env.NODE_ENV === "production",
   port: Number(process.env.PORT || 3002), // JVzPay's agreed port in the JOHNVIVZ network (docs/API_INTEGRATION.md §6)
+  // Address to listen on. Production (behind Nginx): 127.0.0.1 only. Development: every address, so the other
+  // JOHNVIVZ laptops on the same Wi-Fi can reach it.
+  host: process.env.HOST || (process.env.NODE_ENV === "production" ? "127.0.0.1" : undefined),
+  // https://johnvivz-pay.duckdns.org — every link given to people (password reset, registration) starts with it.
+  // Empty on a laptop: links then use the address the browser used.
+  publicBaseUrl: String(process.env.PUBLIC_BASE_URL || "").trim().replace(/\/+$/, ""),
+  // Express "trust proxy": 1 behind one Nginx, so req.ip / req.secure come from X-Forwarded-For / X-Forwarded-Proto.
+  // Default off (a laptop has no proxy, and trusting the header there would let anyone fake their address).
+  trustProxy: parseTrustProxy(process.env.TRUST_PROXY),
+  // Session cookie only over https. Default off so sign-in works on a laptop over http; true on the server once
+  // https:// works.
+  cookieSecure: parseBool(process.env.COOKIE_SECURE),
   db: {
     host: process.env.DB_HOST || "localhost",
     port: Number(process.env.DB_PORT || 3306),

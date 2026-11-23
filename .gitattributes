@@ -1,0 +1,5 @@
+# Files run or read on the Linux server keep LF line endings even when committed from Windows
+*.sh text eol=lf
+deploy/** text eol=lf
+ecosystem.config.cjs text eol=lf
+.env.production.example text eol=lf

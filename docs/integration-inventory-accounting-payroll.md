@@ -543,7 +543,13 @@ Any other event type from a given app is refused with `400`.
 | `SESSION_IDLE_MINUTES` | Sign-out after this many idle minutes |
 | `MAX_FAILED_LOGINS`, `LOCKOUT_MINUTES` | Account lock after wrong passwords, and for how long |
 | `RESET_LINK_MINUTES` | Lifetime of one-time password reset links |
-| `HTTPS_CERT_FILE`, `HTTPS_KEY_FILE` | PEM files to serve HTTPS directly (empty = HTTP) |
+| `HOST` | Listen address: empty on a laptop (every address), `127.0.0.1` on the AWS server behind Nginx |
+| `PUBLIC_BASE_URL` | Public address (`https://johnvivz-pay.duckdns.org` on AWS); password reset and registration links start with it |
+| `TRUST_PROXY` | `1` behind Nginx (client IPs and https from `X-Forwarded-For` / `X-Forwarded-Proto`); default `false` |
+| `COOKIE_SECURE` | `true` once https works on the server; default `false` so http sign-in works on a laptop |
+| `PENDING_INTEGRATIONS` | Production only: apps whose server is not ready yet (`hr,crm,inventory`), not required at start-up |
+| `CRM_EVENTS_ENABLED`, `INVENTORY_EVENTS_ENABLED` | Queue events for that app (default `true`; `HR_EVENTS_ENABLED` defaults to `false`) |
+| `HTTPS_CERT_FILE`, `HTTPS_KEY_FILE` | PEM files to serve HTTPS directly (empty = HTTP). **Empty on AWS**: Nginx does TLS |
 | `HTTP_REDIRECT_PORT` | With HTTPS on, extra port that redirects HTTP to HTTPS (0 = off) |
 | `DISABLE_SCHEDULER` | `1` turns off background jobs, **including sending integration events** |
 | `COMPANY_NAME`, `COMPANY_ADDRESS` | Printed on payslips and reports |
